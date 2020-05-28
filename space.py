@@ -7,17 +7,20 @@ class future:
     maxTime = 0
 
     def scheduleAt(self, node, time):
-        assert(time >= currentTime)
+        assert(time >= self.currentTime)
         ct = future.events.get(time)
         if ct is None:
             ct = []
             future.events[time] = ct
         
-
+    def initSim(self):
+        for i in node.persons:
+            self.scheduleAt(i,self.currentTime)
 
 class node:
     names = {}
     persons= []
+    time = future()
 
     def __init__(self, name, role=ROLES[0], field=0, sqM=1):
         self.name = name
@@ -60,24 +63,40 @@ class person(node):
     def __init__(self, name):
         node.__init__(self,name,ROLES[1],0,1)
         self._infected = False
+        self._infectedTime = -1
+        node.persons.append(self)
         self.paths = []
     @property
     def infected(self):
         return self._infected
     @infected.setter
     def infected(self,val):
+        assert(val==True or val==False)
         self._infected = val
         print("INFECTING " + self.name)
     def addPath(self, path):
         assert(path[0]==self)
+        for i in path:
+            if isinstance(i,PPE):
+                i.prsn = self
         self.paths.append(path)
-
+        
 
 class PPE(node):
     cnt = 0
     def __init__(self,role=ROLES[2], prsn=None):
         node.__init__(self,name="ppe."+str(PPE.cnt),role=role)
         PPE.cnt += 1
-        self._prsn = prsn
+        self.prsn = prsn
+        self.pFactor = .1
     
         
+lb=person("len")
+sarah=person("sarah")
+gerry=person("gerry")
+lb.infected=True
+test=node("lask")
+gerry.addPath([gerry,test])
+lb.addPath([lb,test])
+sarah.addPath([sarah,PPE(),test])
+node.time.initSim()
