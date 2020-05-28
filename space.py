@@ -12,6 +12,7 @@ class future:
         if ct is None:
             ct = []
             future.events[time] = ct
+        ct.append(node)
         
     def initSim(self):
         for i in node.persons:
@@ -64,23 +65,56 @@ class node:
         self_lastTime = 0 
         self._exposure = 0 # #time integral of field
         self._sqM = sqM
-        self.connect = [] # #paths to/from
         self.delay = 1 #
         self.crowdFactor = 1
+        self.inReady = [[],[]]  # #paths & field connections
     def process(self):
-        pass
+        self.field = self.calculate(self.inReady)
+        
+        while len(self.inReady[1])>0:  #push value along paths
+            tPath = self.inReady[1][0]
+            assert(self == tPath.nodes[tPath.curLoc+tPath.inc])
+            tPath.process()
+            self.inReady[1] = self.inReady[1][1:]
+        self.inReady[0].clear()
+        self.inReady[1].clear()
+
+
+    def calculate(self, a ):
+        valA = a[0]
+        pathA = a[1]
+        assert(len(valA)==len(pathA))
+        for i in range(0,len(valA)):
+            path = pathA[i]
+            val = valA[i]
+            cNode = path.nodes[path.curLoc]
+            assert(cNode.field==val)
+        
+    def ready(self, field, path):
+        conn =self.inReady
+        conn[0].append(field)
+        conn[1].append(path)
+        
     @property
     def field(self):
         return self._field
     @field.setter
     def field(self,val):
         self._field = val
-
+        self._fieldTime = future.currentTime
 
     class path:
         def __init__(self):
             self.nodes = []
             self.curLoc = -1
+            self.forward = -1
+        def process(self): # #one step at a time
+            srcNode = self.nodes[self.curLoc]
+            inc = self.forward
+            targetNode = self.nodes[self.curLoc+inc]
+            # # 4 steps:addValue/schedule targetNode, Note: path direction available to targetNode
+            targetNode.ready(srcNode.field,self)
+            time.scheduleAt(targetNode,time.currentTime+srcNode.delay)
         def augmentPath(self, arr):
             if len(nodes) == 0:
                 self.nodes.extend(arr)
@@ -99,8 +133,15 @@ class person(node):
         node.persons.append(self)
         self.paths = []
         self.nextPath = None
-    def process(self):
-        pass
+    def process(self): # #THIS BEGINS A JOURNEY ALONG A PATH
+        if ( self.infected ):
+            self.field += 1   # #assignment overloaded in node
+        tPath = self.paths[self.nextPath]
+        tPath.forward = 1
+        assert(tPath.nodes[tPath.curLoc]==self)
+        # #continue processing along the path
+        tPath.process()
+        
     @property
     def infected(self):
         return self._infected
