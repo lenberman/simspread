@@ -17,6 +17,36 @@ class future:
         for i in node.persons:
             self.scheduleAt(i,self.currentTime)
 
+    def popNextNode(self): # # AT CURRENT TIME or increment currentTime if None
+        nn = self.events.get(self.currentTime)
+        if nn is None or len(nn) == 0:
+            currentTime += 1
+            return None
+        if len(nn) > 0:
+            rv = nn[1]
+            nn = nn[1:]
+            assert(isinstance(rv,node))
+            return rv
+
+    def processNextNode(self): #   # returns processed node
+        nd = popNextNode(self)
+        while(nd is None):
+            if  self.currentTime <= self.maxTime:
+                nd = popNextNode(self)
+            else:
+                return None
+        return nd . process()
+
+    def finish(self): # #simulate all currently scheduled nodes
+        endTime = self.maxTime
+        while True and self.currentTime <= endTime:
+            nd = processNextNode(self)
+            if nd is None:
+                print("DEPTH now: " + str(self.currentTime))
+                return True
+        
+
+    
 class node:
     names = {}
     persons= []
@@ -37,6 +67,8 @@ class node:
         self.connect = [] # #paths to/from
         self.delay = 1 #
         self.crowdFactor = 1
+    def process(self):
+        pass
     @property
     def field(self):
         return self._field
@@ -66,6 +98,9 @@ class person(node):
         self._infectedTime = -1
         node.persons.append(self)
         self.paths = []
+        self.nextPath = None
+    def process(self):
+        pass
     @property
     def infected(self):
         return self._infected
@@ -73,8 +108,12 @@ class person(node):
     def infected(self,val):
         assert(val==True or val==False)
         self._infected = val
+        if self.infected:
+            self.field += 1
         print("INFECTING " + self.name)
     def addPath(self, path):
+        if (self.nextPath is None):
+            self.nextPath = 0
         assert(path[0]==self)
         for i in path:
             if isinstance(i,PPE):
@@ -89,6 +128,8 @@ class PPE(node):
         PPE.cnt += 1
         self.prsn = prsn
         self.pFactor = .1
+    def process(self):
+        pass
     
         
 lb=person("len")
