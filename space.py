@@ -6,15 +6,19 @@ class future:
     currentTime = 0
     maxTime = 0
 
+    def __str__(self):
+        rv = "Current " + str(self.currentTime) + ", max " + str(self.maxTime)
+        rv += "\n\t" + str(self.events)
+        return rv
     def scheduleAt(self, node, time): # #reschedule if necessary
-        assert(time >= self.currentTime)
+        assert(time >= self.currentTime) # #don't schedule in past
         nodeCurrentSchedule = node.scheduledAt
         self.maxTime = max(self.maxTime,time,nodeCurrentSchedule)
         if nodeCurrentSchedule >= 0:
-            if nodeCurrentSchedule >= time:
+            if nodeCurrentSchedule > time:
                 return
-            else: # #less than requested time, 
-                ct = future.events[nodeScheduledTime]
+            elif nodeCurrentSchedule == time: # # == move to end of this time, 
+                ct = future.events[nodeCurrentSchedule]
                 ct . remove( node )
         ct = future.events.get(time)
         if ct is None:
@@ -32,12 +36,16 @@ class future:
         nn = self.events.get(self.currentTime)
         if nn is None or len(nn) == 0:
             self.currentTime += 1
-            return None
+            if self.currentTime > self.maxTime:
+                return None
+            else:
+                return self.popNextNode()
         if len(nn) > 0:
             rv = nn[0]
             nn = nn[1:]
             self.events[self.currentTime] = nn
             assert(isinstance(rv,node))
+            rv.scheduledAt = -1
             return rv
 
     def processNextNode(self): #   # returns processed node
@@ -85,7 +93,7 @@ class node:
     def process(self):
         self.field = self.calculate(self.inReady)
         
-        for i in range(0,len(self.inReady[1])-1):
+        for i in range(0,len(self.inReady[1])):
             tPath = self.inReady[1][i]
             assert(self == tPath.nodes[tPath.curLoc+tPath.forward])
             tPath.process()
@@ -155,7 +163,7 @@ class person(node):
         if ( self.infected ):
             self.field += 1   # #assignment overloaded in node
         tPath = self.paths[self.nextPath]
-        tPath.forward *= -1
+        tPath.forward = 1
         assert(tPath.nodes[tPath.curLoc]==self)
         # #continue processing along the path
         tPath.process()
@@ -188,8 +196,8 @@ class PPE(node):
         self.prsn = prsn
         self.pFactor = .1
     def calculate(self, a):
-        assert(len(a)==1)  #push value along paths
-        return self.pFactor*a[0]
+        assert(len(a[0])==1)  #push value along paths
+        return self.pFactor*a[0][0]
     
         
 lb=person("len")
@@ -201,4 +209,6 @@ gerry.addPath([gerry,test])
 lb.addPath([lb,test])
 sarah.addPath([sarah,PPE(),test])
 node.time.initSim()
+node.time.finish()
+node.time.finish()
 node.time.finish()
