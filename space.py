@@ -8,7 +8,7 @@ class future:
 
     def __str__(self):
         rv = "Current " + str(self.currentTime) + ", max " + str(self.maxTime)
-        rv += "\n\t" + str(self.events)
+        rv += str(self.events)
         return rv
     def scheduleAt(self, node, time): # #reschedule if necessary
         assert(time >= self.currentTime) # #don't schedule in past
@@ -62,12 +62,13 @@ class future:
 
     def finish(self): # #simulate all currently scheduled nodes
         endTime = self.maxTime
-        while True and self.currentTime <= endTime:
+        while self.currentTime <= self.maxTime:
             nd = self.processNextNode()
             if nd is None:
                 print("Completed DEPTH: " + str(self.currentTime))
+                print("\t:maxTime:" + str(self.maxTime))
                 return True
-        
+        return False
 
     
 class node:
@@ -83,25 +84,31 @@ class node:
         self._role = role
         self._field = field # #infectivity
         self._fieldTime = future.currentTime # 
-
+        self.lastTime = -1
         self.scheduledAt = -1
+        self.scheduleInterval = 2
         self._exposure = 0 # #time integral of field
         self._sqM = sqM
         self.delay = 1 #
         self.crowdFactor = 1
         self.inReady = [[],[]]  # #paths & field connections
     def process(self):
-        self.field = self.calculate(self.inReady)
+        if (True):
+            print("node(" +str(self.name) +")\tinputs:\t" + str(self.inReady[0]) +\
+                  "\t(current/Max)Time=("+str(node.time.currentTime) + ","+ str(node.time.maxTime)+")") 
+        self.field = self.calculate(self.field,self.inReady)
         
-        for i in range(0,len(self.inReady[1])):
+        for i in range(len(self.inReady[1])-1,-1,-1):
             tPath = self.inReady[1][i]
             assert(self == tPath.nodes[tPath.curLoc+tPath.forward])
-            tPath.process()
-        self.inReady[0] = []
-        self.inReady[1] = []
+            prevNode = tPath.nodes[tPath.curLoc]
+            if prevNode._fieldTime + prevNode.delay <= self._fieldTime and prevNode._fieldTime + prevNode.delay > self.lastTime:
+                tPath.process()
+                self.inReady[0].pop(i)
+                self.inReady[1].pop(i)
         return self
 
-    def calculate(self, a ):
+    def calculate(self, cField, a ):
         valA = a[0]
         pathA = a[1]
         total = 0.0
@@ -114,8 +121,12 @@ class node:
             assert(cNode.field==val)
             total += val * cNode._sqM
             sq += cNode._sqM
-        rv = total / sq
+        if sq != 0.0:
+            rv = ((total / sq) + .5*cField)*2/3
+        else:
+            rv = cField
         return rv
+
     def ready(self, field, path):
         conn =self.inReady
         conn[0].append(field)
@@ -127,8 +138,9 @@ class node:
     @field.setter
     def field(self,val):
         self._field = val
+        self.lastTime = self._fieldTime
         self._fieldTime = future.currentTime
-
+        
     class path:
         def __init__(self, array):
             self.nodes = []
@@ -162,6 +174,7 @@ class person(node):
     def process(self): # #THIS BEGINS A JOURNEY ALONG A PATH
         if ( self.infected ):
             self.field += 1   # #assignment overloaded in node
+        node.process(self)
         tPath = self.paths[self.nextPath]
         tPath.forward = 1
         assert(tPath.nodes[tPath.curLoc]==self)
@@ -190,16 +203,18 @@ class person(node):
 
 class PPE(node):
     cnt = 0
-    def __init__(self,role=ROLES[2], prsn=None):
-        node.__init__(self,name="ppe."+str(PPE.cnt),role=role)
+    def __init__(self,person=None):
+        if person is None:
+            node.__init__(self,name="ppe."+str(PPE.cnt),role=ROLES[2])
+        else:
+            node.__init__(self,person.name+".ppe",role=ROLES[2])
         PPE.cnt += 1
-        self.prsn = prsn
+        self.prsn = person
         self.pFactor = .1
-    def calculate(self, a):
+    def calculate(self, cField, a):
         assert(len(a[0])==1)  #push value along paths
         return self.pFactor*a[0][0]
     
-        
 lb=person("len")
 sarah=person("sarah")
 gerry=person("gerry")
@@ -207,7 +222,7 @@ lb.infected=True
 test=node("task")
 gerry.addPath([gerry,test])
 lb.addPath([lb,test])
-sarah.addPath([sarah,PPE(),test])
+sarah.addPath([sarah,PPE(person=sarah),test])
 node.time.initSim()
 node.time.finish()
 node.time.finish()
