@@ -3,6 +3,8 @@ ROLES = ["???", "PERSON", "PPE", "ROOM", "HOSPITAL", "ELEVATYOR",
          "MEDICAL", "BUS", "CAR", "CARRIAGE", "PLATFORM", "BUSSTOP",
          "STAIRWAY", "REGION"]
 
+# ##import pdb; pdb.set_trace()
+
 
 class future:
     events = {}
@@ -18,8 +20,6 @@ class future:
         assert(time >= self.currentTime)  # #don't schedule in past
         print("\nSchedule " + str(nd) + " at " + str(time))
         nodeCurrentSchedule = nd.scheduledAt
-        if nd.name == "task":
-            import pdb; pdb.set_trace()       
         self.maxTime = max(self.maxTime, time, nodeCurrentSchedule)
         if nodeCurrentSchedule >= 0:
             if nodeCurrentSchedule > time:
@@ -109,12 +109,11 @@ class node:
 
     def process(self):
         if (True):
-            print("\nProcess(" + str(self.name) + "):\t" +
+            print("\nProcessing(" + str(self.name) + "):\t" +
                   str(self.inReady[0]) + "\t(current/Max)Time=(" +
                   str(node.time.currentTime) + "/" +
                   str(node.time.maxTime) + ")")
-        if isinstance(self, PPE):
-            import pdb; pdb.set_trace()
+        import pdb; pdb.set_trace()
         self.field = self.calculate(self.field, self.inReady)
         valA = self.inReady[0]
         pathA = self.inReady[1]
@@ -176,6 +175,15 @@ class node:
             self.curLoc = 0
             self.forward = 1
 
+        def __str__(self):
+            rv = []
+            for i in self.nodes:
+                if i == self.nodes[self.curLoc]:
+                    rv.append("*" + i.name + "*")
+                else:
+                    rv.append(i.name)
+            return str(rv)
+
         def process(self):  # #one step at a time
             srcNode = self.nodes[self.curLoc]
             if self.curLoc+self.forward < 0 or \
@@ -185,7 +193,8 @@ class node:
                 t1 = srcNode._fieldTime + srcNode.delay
                 node.time.scheduleAt(targetNode, t1)
             else:
-                if self.curLoc + self.forward < 0 or self.curLoc + self.forward >= len(self.nodes):
+                if self.curLoc + self.forward < 0 or \
+                   self.curLoc + self.forward >= len(self.nodes):
                     import pdb; pdb.set_trace()
                 targetNode = self.nodes[self.curLoc+self.forward]
                 targetNode.ready(srcNode.field, self)
