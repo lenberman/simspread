@@ -1,4 +1,7 @@
-ROLES = ["unassigned","PERSON", "PPE", "ROOM","HOSPITAL" ,"ELEVATYOR" ,"APT" ,"STREET" ,"BAR" , "RESTAURANT" ,"STORE" ,"ESSENTIAL" ,"MEDICAL" ,"BUS" ,"CAR" ,"CARRIAGE" ,"PLATFORM" ,"BUSSTOP" ,"STAIRWAY" ,"REGION" ] 
+ROLES = ["???", "PERSON", "PPE", "ROOM", "HOSPITAL", "ELEVATYOR", \
+         "APT", "STREET", "BAR", "RESTAURANT", "STORE", "ESSENTIAL",\
+         "MEDICAL", "BUS", "CAR", "CARRIAGE", "PLATFORM", "BUSSTOP",\
+         "STAIRWAY", "REGION"]
 
 
 class future:
@@ -10,27 +13,35 @@ class future:
         rv = "Current " + str(self.currentTime) + ", max " + str(self.maxTime)
         rv += str(self.events)
         return rv
-    def scheduleAt(self, node, time): # #reschedule if necessary
+
+    def scheduleAt(self, nd, time):  # #reschedule if necessary
         assert(time >= self.currentTime) # #don't schedule in past
-        nodeCurrentSchedule = node.scheduledAt
+        print("\nSchedule " + str(nd) + " at "+ str(time))
+        nodeCurrentSchedule = nd.scheduledAt
+        if nd.name=="task":
+            import pdb; pdb.set_trace()       
         self.maxTime = max(self.maxTime,time,nodeCurrentSchedule)
         if nodeCurrentSchedule >= 0:
             if nodeCurrentSchedule > time:
                 return
-            elif nodeCurrentSchedule == time: # # == move to end of this time, 
-                ct = future.events[nodeCurrentSchedule]
-                ct . remove( node )
-        ct = future.events.get(time)
+            else: # # == move to end of this time, 
+                ct = self.events[nodeCurrentSchedule]
+                ct.remove( nd )
+        ct = self.events.get(time)
         if ct is None:
             ct = []
-            future.events[time] = ct
-        ct.append(node)
-        node.scheduledAt = time
-        
+            self.events[time] = ct
+        ct.append(nd)
+        nd.scheduledAt = time
+        print(self)
         
     def initSim(self):
-        for i in node.persons:
-            self.scheduleAt(i,self.currentTime)
+        self.currentTime += 1
+        self.maxTime = max( self.maxTime, self.currentTime)
+        assert(self==node.time)
+        for ii in node.persons:
+            ii.reset() # reset
+            self.scheduleAt(ii,self.currentTime)
 
     def popNextNode(self): # # AT CURRENT TIME or increment currentTime if None
         nn = self.events.get(self.currentTime)
@@ -38,7 +49,7 @@ class future:
             self.currentTime += 1
             if self.currentTime > self.maxTime:
                 return None
-            else:
+            else:# #clock incremented
                 return self.popNextNode()
         if len(nn) > 0:
             rv = nn[0]
@@ -50,18 +61,12 @@ class future:
 
     def processNextNode(self): #   # returns processed node
         nd = self.popNextNode()
-        while(nd is None):
-            if  self.currentTime <= self.maxTime:
-                nd = self.popNextNode()
-                if ( nd is None):
-                    self.currentTime += 1
-            else:
-                return None
+        if(nd is None):
+            return None
         assert(isinstance(nd,node))
-        return nd . process()
+        return nd.process()
 
     def finish(self): # #simulate all currently scheduled nodes
-        endTime = self.maxTime
         while self.currentTime <= self.maxTime:
             nd = self.processNextNode()
             if nd is None:
@@ -83,8 +88,8 @@ class node:
         node.names[name] = self
         self._role = role
         self._field = field # #infectivity
-        self._fieldTime = future.currentTime # 
-        self.lastTime = -1
+        self._fieldTime = node.time.currentTime # 
+        self.lastTime = node.time.currentTime
         self.scheduledAt = -1
         self.scheduleInterval = 2
         self._exposure = 0 # #time integral of field
@@ -92,20 +97,36 @@ class node:
         self.delay = 1 #
         self.crowdFactor = 1
         self.inReady = [[],[]]  # #paths & field connections
+    def reset(self):
+        self.lastTime = self._fieldTime
+        self._fieldTime = node.time.currentTime
+    def __str__(self):
+        val = self.name +"("+self._role+","+str(self._field)+","+str(self._fieldTime)+","+str(self.lastTime) +")"
+        return val
     def process(self):
         if (True):
-            print("node(" +str(self.name) +")\tinputs:\t" + str(self.inReady[0]) +\
-                  "\t(current/Max)Time=("+str(node.time.currentTime) + ","+ str(node.time.maxTime)+")") 
+            print("\nProcess(" +str(self.name) +"):\t" + str(self.inReady[0]) +\
+                  "\t(current/Max)Time=("+str(node.time.currentTime) + "/"+ str(node.time.maxTime)+")") 
+        if isinstance(self,PPE):
+            import pdb; pdb.set_trace()
         self.field = self.calculate(self.field,self.inReady)
-        
-        for i in range(len(self.inReady[1])-1,-1,-1):
-            tPath = self.inReady[1][i]
+        valA = self.inReady[0]
+        pathA = self.inReady[1]
+        v=[]
+        p=[]
+        for i in range(len(pathA)):
+            tPath = pathA[i]
             assert(self == tPath.nodes[tPath.curLoc+tPath.forward])
             prevNode = tPath.nodes[tPath.curLoc]
-            if prevNode._fieldTime + prevNode.delay <= self._fieldTime and prevNode._fieldTime + prevNode.delay > self.lastTime:
+            if prevNode._fieldTime + prevNode.delay <= self._fieldTime and \
+               prevNode._fieldTime + prevNode.delay > self.lastTime:
+                tPath.curLoc += tPath.forward # #point here
                 tPath.process()
-                self.inReady[0].pop(i)
-                self.inReady[1].pop(i)
+            else:
+                v.extend(valA[i])
+                p.extend(pathA[i])
+        self.inReady= [v,p]
+        
         return self
 
     def calculate(self, cField, a ):
@@ -122,7 +143,7 @@ class node:
             total += val * cNode._sqM
             sq += cNode._sqM
         if sq != 0.0:
-            rv = ((total / sq) + .5*cField)*2/3
+            rv = ((total / sq) +.5*cField)*2/3
         else:
             rv = cField
         return rv
@@ -139,7 +160,7 @@ class node:
     def field(self,val):
         self._field = val
         self.lastTime = self._fieldTime
-        self._fieldTime = future.currentTime
+        self._fieldTime = node.time.currentTime
         
     class path:
         def __init__(self, array):
@@ -149,10 +170,20 @@ class node:
             self.forward = 1
         def process(self): # #one step at a time
             srcNode = self.nodes[self.curLoc]
-            targetNode = self.nodes[self.curLoc+self.forward]
-            # # 4 steps:addValue/schedule targetNode, Note: path direction available to targetNode
-            targetNode.ready(srcNode.field,self)
-            node.time.scheduleAt(targetNode,future.currentTime+srcNode.delay)
+            if self.curLoc+self.forward < 0 or self.curLoc+self.forward>=len(self.nodes):
+                self.forward *= -1
+                targetNode = srcNode
+                t1 = srcNode._fieldTime + srcNode.delay
+                node.time.scheduleAt(targetNode, t1)
+            else:
+                if self.curLoc+self.forward < 0 or self.curLoc+self.forward>=len(self.nodes):
+                    import pdb; pdb.set_trace()
+                targetNode = self.nodes[self.curLoc+self.forward]
+                # # 4 steps:addValue/schedule targetNode, Note: path direction available to targetNode
+                targetNode.ready(srcNode.field,self)
+                t1 = max(node.time.currentTime,srcNode._fieldTime) + srcNode.delay
+                node.time.scheduleAt(targetNode, t1)
+
         def augmentPath(self, arr):
             if len(nodes) == 0:
                 self.nodes.extend(arr)
@@ -188,9 +219,8 @@ class person(node):
     def infected(self,val):
         assert(val==True or val==False)
         self._infected = val
-        if self.infected:
-            self.field += 1
-        print("INFECTING " + self.name)
+        self._infectedTime = node.time.currentTime
+        print("at " + str(node.time.currentTime) + "INFECTING " + self.name)
     def addPath(self, ndA):
         if (self.nextPath is None):
             self.nextPath = 0
@@ -219,11 +249,29 @@ lb=person("len")
 sarah=person("sarah")
 gerry=person("gerry")
 lb.infected=True
-test=node("task")
+test=node("task", role=ROLES[3])
 gerry.addPath([gerry,test])
 lb.addPath([lb,test])
 sarah.addPath([sarah,PPE(person=sarah),test])
 node.time.initSim()
-node.time.finish()
-node.time.finish()
-node.time.finish()
+print("\nNode processed:\t"+str(node.time.processNextNode()))
+print("\nNode processed:\t"+str(node.time.processNextNode()))
+print("\nNode processed:\t"+str(node.time.processNextNode()))
+print("\nNode processed:\t"+str(node.time.processNextNode()))
+print("\nNode processed:\t"+str(node.time.processNextNode()))
+print("\nNode processed:\t"+str(node.time.processNextNode()))
+print("\nNode processed:\t"+str(node.time.processNextNode()))
+print("\nNode processed:\t"+str(node.time.processNextNode()))
+print("\nNode processed:\t"+str(node.time.processNextNode()))
+print("\nNode processed:\t"+str(node.time.processNextNode()))
+print("\nNode processed:\t"+str(node.time.processNextNode()))
+print("\nNode processed:\t"+str(node.time.processNextNode()))
+print("\nNode processed:\t"+str(node.time.processNextNode()))
+print("\nNode processed:\t"+str(node.time.processNextNode()))
+print("\nNode processed:\t"+str(node.time.processNextNode()))
+print("\nNode processed:\t"+str(node.time.processNextNode()))
+print("\nNode processed:\t"+str(node.time.processNextNode()))
+print("\nNode processed:\t"+str(node.time.processNextNode()))
+print("\nNode processed:\t"+str(node.time.processNextNode()))
+#node.time.finish()
+print(node.time)
