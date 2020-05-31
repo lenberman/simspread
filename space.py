@@ -258,34 +258,19 @@ class PPE(node):
     def calculate(self, cField, a):
         assert(len(a[0]) == 1)   # #push value along paths
         return self.pFactor*a[0][0]
-    
-lb=person("len")
-sarah=person("sarah")
-gerry=person("gerry")
-lb.infected=True
-test=node("task", role=ROLES[3])
-gerry.addPath([gerry,test])
-lb.addPath([lb,test])
-sarah.addPath([sarah,PPE(person=sarah),test])
+
+
+lb = person("len")
+sarah = person("sarah")
+gerry = person("gerry")
+lb.infected = True
+test = node("task", role=ROLES[3])
+gerry.addPath([gerry, test])
+lb.addPath([lb, test])
+sarah.addPath([sarah, PPE(person=sarah), test])
 node.time.initSim()
+node.time.finish()
 print("\nNode processed:\t"+str(node.time.processNextNode()))
-print("\nNode processed:\t"+str(node.time.processNextNode()))
-print("\nNode processed:\t"+str(node.time.processNextNode()))
-print("\nNode processed:\t"+str(node.time.processNextNode()))
-print("\nNode processed:\t"+str(node.time.processNextNode()))
-print("\nNode processed:\t"+str(node.time.processNextNode()))
-print("\nNode processed:\t"+str(node.time.processNextNode()))
-print("\nNode processed:\t"+str(node.time.processNextNode()))
-print("\nNode processed:\t"+str(node.time.processNextNode()))
-print("\nNode processed:\t"+str(node.time.processNextNode()))
-print("\nNode processed:\t"+str(node.time.processNextNode()))
-print("\nNode processed:\t"+str(node.time.processNextNode()))
-print("\nNode processed:\t"+str(node.time.processNextNode()))
-print("\nNode processed:\t"+str(node.time.processNextNode()))
-print("\nNode processed:\t"+str(node.time.processNextNode()))
-print("\nNode processed:\t"+str(node.time.processNextNode()))
-print("\nNode processed:\t"+str(node.time.processNextNode()))
-print("\nNode processed:\t"+str(node.time.processNextNode()))
-print("\nNode processed:\t"+str(node.time.processNextNode()))
-#node.time.finish()
+# ##print("\nNode processed:\t"+str(node.time.processNextNode()))
+# #node.time.finish()
 print(node.time)
