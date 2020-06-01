@@ -71,8 +71,8 @@ class future:
         assert(isinstance(nd, node) or isinstance(nd, node.path))
         return nd.process()
 
-    def finish(self):  # #simulate all currently scheduled nodes
-        while self.currentTime <= self.maxTime:
+    def finish(self, mTime=1000):  # #simulate all currently scheduled nodes
+        while self.currentTime <= max(self.maxTime,mTime):
             nd = self.processNextNode()
             if nd is None:
                 print("Completed DEPTH: " + str(self.currentTime))
@@ -117,7 +117,7 @@ class node:
         if (True):
             print("\nProcessing(" + str(self.name) + "):\t" +
                   str(self.inReady[0]))
-        import pdb; pdb.set_trace()
+        #import pdb; pdb.set_trace()
         self.field = self.calculate(self.field, self.inReady)
         valA = self.inReady[0]
         pathA = self.inReady[1]
@@ -126,7 +126,7 @@ class node:
         for i in range(len(pathA)):
             tPath = pathA[i]
             # #values furnished by inReady have path curLoc at source
-            assert(self == tPath.nodes[tPath.curLoc+tPath.forward])
+            ##assert(self == tPath.nodes[tPath.curLoc+tPath.forward])
             prevNode = tPath.nodes[tPath.curLoc]
             if prevNode._fieldTime + prevNode.delay <= self._fieldTime and \
                prevNode._fieldTime + prevNode.delay > self.lastTime:
@@ -199,7 +199,7 @@ class node:
                self.curLoc + self.forward >= len(self. nodes):
                 # #reverse path at current node
                 # #curLoc is end of this path
-                import pdb; pdb.set_trace()
+                # import pdb; pdb.set_trace()
                 self.forward *= -1
             targetNode = self.nodes[self.curLoc+self.forward]
             targetNode.ready(srcField, self)
@@ -225,16 +225,22 @@ class person(node):
         node.persons.append(self)
         self.paths = []
         self.nextPath = None
-
+        self.pNum = 0
     def process(self):  # #THIS BEGINS A JOURNEY ALONG A PATH
         if (self.infected):
             self.field = 1   # #assignment overloaded in node
+        if self.pNum < 2:
+            self.pNum += 1
+        else:
+            return
         node.process(self)
         tPath = self.paths[self.nextPath]
         tPath.forward *= -1
         # #assert(tPath.nodes[tPath.curLoc] == self)
         # #forward huskies
         tPath.process()
+        # #next required to 
+        self.inReady = [[], []]
         return self
 
     @property
@@ -283,7 +289,7 @@ gerry.addPath([gerry, test])
 lb.addPath([lb, test])
 sarah.addPath([sarah, PPE(person=sarah), test])
 node.time.initSim()
-node.time.finish()
+node.time.finish(20)
 print("\nNode processed:\t"+str(node.time.processNextNode()))
 # ##print("\nNode processed:\t"+str(node.time.processNextNode()))
 # #node.time.finish()
