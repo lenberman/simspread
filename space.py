@@ -19,7 +19,12 @@ class future:
     def scheduleAt(self, nd, time):  # #reschedule if necessary
         assert(time >= self.currentTime)  # #don't schedule in past
         print("\nSchedule " + str(nd) + " at " + str(time))
-        nodeCurrentSchedule = nd.scheduledAt
+        if isinstance(nd, node):
+            nodeCurrentSchedule = nd.scheduledAt
+            if time > nd.scheduledAt:
+                nd.scheduledAt = time
+        else:#  #could be a path end
+            nodeCurrentSchedule = -1
         self.maxTime = max(self.maxTime, time, nodeCurrentSchedule)
         if nodeCurrentSchedule >= 0:
             if nodeCurrentSchedule > time:
@@ -32,7 +37,6 @@ class future:
             ct = []
             self.events[time] = ct
         ct.append(nd)
-        nd.scheduledAt = time
         print(self)
         
     def initSim(self):
@@ -55,15 +59,16 @@ class future:
             rv = nn[0]
             nn = nn[1:]
             self.events[self.currentTime] = nn
-            assert(isinstance(rv, node))
-            rv.scheduledAt = -1
+            assert(isinstance(rv, node) or isinstance(rv, node.path))
+            if isinstance(rv, node):
+                rv.scheduledAt = -1
             return rv
 
-    def processNextNode(self):  
+    def processNextNode(self):
         nd = self.popNextNode()
         if(nd is None):
             return None
-        assert(isinstance(nd, node))
+        assert(isinstance(nd, node) or isinstance(nd, node.path))
         return nd.process()
 
     def finish(self):  # #simulate all currently scheduled nodes
@@ -103,16 +108,15 @@ class node:
         self._fieldTime = node.time.currentTime
 
     def __str__(self):
-        val = self.name + "(" + self._role + "," + str(self._field) + \
-              "," + str(self._fieldTime) + "," + str(self.lastTime) + ")"
+        val = self.name + "(" + self._role + ", field=" + str(self._field) + \
+              ", fieldTime=" + str(self._fieldTime) + ", lastTime" + \
+              str(self.lastTime) + ")"
         return val
 
     def process(self):
         if (True):
             print("\nProcessing(" + str(self.name) + "):\t" +
-                  str(self.inReady[0]) + "\t(current/Max)Time=(" +
-                  str(node.time.currentTime) + "/" +
-                  str(node.time.maxTime) + ")")
+                  str(self.inReady[0]))
         import pdb; pdb.set_trace()
         self.field = self.calculate(self.field, self.inReady)
         valA = self.inReady[0]
@@ -121,16 +125,20 @@ class node:
         p = []
         for i in range(len(pathA)):
             tPath = pathA[i]
+            # #values furnished by inReady have path curLoc at source
             assert(self == tPath.nodes[tPath.curLoc+tPath.forward])
             prevNode = tPath.nodes[tPath.curLoc]
             if prevNode._fieldTime + prevNode.delay <= self._fieldTime and \
                prevNode._fieldTime + prevNode.delay > self.lastTime:
-                tPath.curLoc += tPath.forward  # #point here
+                # #value from this path processed
+                tPath.curLoc += tPath.forward
                 tPath.process()
             else:
-                v.extend(valA[i])
-                p.extend(pathA[i])
-        self.inReady = [v,p]
+                # #value from this path saved for next periodic activation
+                # ##import pdb; pdb.set_trace()
+                v.extend([valA[i]])
+                p.extend([pathA[i]])
+        self.inReady = [v, p]
         
         return self
 
@@ -173,7 +181,7 @@ class node:
             self.nodes = []
             self.nodes.extend(array)
             self.curLoc = 0
-            self.forward = 1
+            self.forward = -1
 
         def __str__(self):
             rv = []
@@ -186,21 +194,18 @@ class node:
 
         def process(self):  # #one step at a time
             srcNode = self.nodes[self.curLoc]
+            srcField = srcNode.field
             if self.curLoc+self.forward < 0 or \
                self.curLoc + self.forward >= len(self. nodes):
+                # #reverse path at current node
+                # #curLoc is end of this path
+                import pdb; pdb.set_trace()
                 self.forward *= -1
-                targetNode = srcNode
-                t1 = srcNode._fieldTime + srcNode.delay
-                node.time.scheduleAt(targetNode, t1)
-            else:
-                if self.curLoc + self.forward < 0 or \
-                   self.curLoc + self.forward >= len(self.nodes):
-                    import pdb; pdb.set_trace()
-                targetNode = self.nodes[self.curLoc+self.forward]
-                targetNode.ready(srcNode.field, self)
-                t1 = max(node.time.currentTime, srcNode._fieldTime)\
-                     + srcNode.delay
-                node.time.scheduleAt(targetNode, t1)
+            targetNode = self.nodes[self.curLoc+self.forward]
+            targetNode.ready(srcField, self)
+            t1 = max(node.time.currentTime, srcNode._fieldTime) + srcNode.delay
+            node.time.scheduleAt(targetNode, t1)
+            return self
 
         def augmentPath(self, arr):
             if len(self.nodes) == 0:
@@ -223,12 +228,12 @@ class person(node):
 
     def process(self):  # #THIS BEGINS A JOURNEY ALONG A PATH
         if (self.infected):
-            self.field += 1   # #assignment overloaded in node
+            self.field = 1   # #assignment overloaded in node
         node.process(self)
         tPath = self.paths[self.nextPath]
-        tPath.forward = 1
-        assert(tPath.nodes[tPath.curLoc] == self)
-        # #continue processing along the path
+        tPath.forward *= -1
+        # #assert(tPath.nodes[tPath.curLoc] == self)
+        # #forward huskies
         tPath.process()
         return self
 
