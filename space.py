@@ -23,29 +23,35 @@ class future:
             nodeCurrentSchedule = nd.scheduledAt
             if time > nd.scheduledAt:
                 nd.scheduledAt = time
-        else:#  #could be a path end
+        else:  # #could be a path end
             nodeCurrentSchedule = -1
         self.maxTime = max(self.maxTime, time, nodeCurrentSchedule)
-        if nodeCurrentSchedule >= 0:
+        if isinstance(nd, node):
             if nodeCurrentSchedule > time:
                 return
-            else:  # # == move to end of this time, 
-                ct = self.events[nodeCurrentSchedule]
-                ct.remove(nd)
+            else:  # # == move to end of this time,
+                ct = self.events.get(nodeCurrentSchedule)
+                if ct is not None:
+                    ct.remove(nd)
         ct = self.events.get(time)
         if ct is None:
             ct = []
             self.events[time] = ct
         ct.append(nd)
         print(self)
-        
+
     def initSim(self):
         self.currentTime += 1
         self.maxTime = max(self.maxTime, self.currentTime)
         assert(self == node.time)
         for ii in node.persons:
+            ii.pNum = 0
             ii.reset()  # # reset
             self.scheduleAt(ii, self.currentTime)
+
+    def step(self):  # #step(s) must be preceded by initSim
+        self.finish()  # #paths have ONE or TWO person nodes.
+        return "Done at time = " + str(self.currentTime)
 
     def popNextNode(self):  # # returns null only when finished
         nn = self.events.get(self.currentTime)
@@ -71,12 +77,12 @@ class future:
         assert(isinstance(nd, node) or isinstance(nd, node.path))
         return nd.process()
 
-    def finish(self, mTime=1000):  # #simulate all currently scheduled nodes
-        while self.currentTime <= max(self.maxTime,mTime):
+    def finish(self, mTime=10000):  # #simulate all currently scheduled nodes
+        while self.currentTime <= max(self.maxTime, mTime):
             nd = self.processNextNode()
             if nd is None:
-                print("Completed DEPTH: " + str(self.currentTime))
-                print("\t:maxTime:" + str(self.maxTime))
+                print("\n\nCompleted DEPTH: " + str(self.currentTime))
+                print("\t:maxTime:" + str(self.maxTime)+"\n")
                 return True
         return False
 
@@ -232,7 +238,7 @@ class person(node):
         if self.pNum < 2:
             self.pNum += 1
         else:
-            return
+            return None
         node.process(self)
         tPath = self.paths[self.nextPath]
         tPath.forward *= -1
@@ -289,8 +295,8 @@ gerry.addPath([gerry, test])
 lb.addPath([lb, test])
 sarah.addPath([sarah, PPE(person=sarah), test])
 node.time.initSim()
-node.time.finish(20)
-print("\nNode processed:\t"+str(node.time.processNextNode()))
+node.time.step()
+#print("\nNode processed:\t"+str(node.time.processNextNode()))
 # ##print("\nNode processed:\t"+str(node.time.processNextNode()))
 # #node.time.finish()
 print(node.time)
