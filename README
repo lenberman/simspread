@@ -1,0 +1,27 @@
+                PEDS
+Place based, event driven simulation model
+      1) relatively fine grained: people & places
+      (offices, elevators, apartments, subways,
+      buses, streets, parks, playgrounds, PPE, ...)
+      2) graphical model
+         Nodes: persons & places
+         Paths: person visits places
+      3) viral density field (VDF)
+               diffusion and ventilation
+      4) exposure (exponentially weighted sum over
+      path of VDF) causes 
+      5) step ~ 6 mins
+
+Disease transmision:
+ 1) asymptomatic 
+ 2) symptomatic
+ 3) probability distribution:
+        exposure -> infection
+        a) probability of infection after spending
+           NSTEPS steps with an infected person
+           (VDF = 1)  is 1.
+ 
+Simple model:
+1)Infected person produces  (1/NSTEPS)/step units
+with VDF 
+2)Probability of infection ~ exponential trailing sum of VDF
