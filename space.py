@@ -139,10 +139,11 @@ class node:
     def __str__(self):
         nm = self.name
         if isinstance(self, person) and self._infected:
-            nm = "<*"+ self.name + "*>"
-        val = nm + "(" + self._role + ", field=" + str(self._field) + \
-              ", fieldStep=" + str(self._fieldStep) + ", lastStep=" + \
-              str(self.lastStep) + ")" + str(self.inReady[0])
+            nm = "<*" + self.name + "*>"
+        val = nm + "(" + self._role
+        val += ", field=" + str(self._field)
+        val += ", lastStep=" + str(self.lastStep) + ")"
+        val += str(self.inReady[0])
         return val
 
     def process(self):
@@ -195,6 +196,8 @@ class node:
 
     @property
     def field(self):
+        if isinstance(self, person) and self.infected:
+            return 1.0
         return self._field
 
     @field.setter
