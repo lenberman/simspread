@@ -1,7 +1,7 @@
-ROLES = ["???", "PERSON", "PPE", "ROOM", "HOSPITAL", "ELEVATYOR",
-         "APT", "STREET", "BAR", "RESTAURANT", "STORE", "ESSENTIAL",
-         "MEDICAL", "BUS", "CAR", "CARRIAGE", "PLATFORM", "BUSSTOP",
-         "STAIRWAY", "REGION"]
+COMPOSITES = [ "ROOM", "APT", "WARD" "FLOOR", "BUILDING", "BLOCK",  "HOSPITAL",  "REGION"]
+
+TYPES = [  "PERSON", "BAR", "RESTAURANT", "STORE",  "MEDICAL", "BUS", "CAR", "CARRIAGE", "PLATFORM", "BUSSTOP",  "ELEVATOR", "STAIRWAY", "STREET"]
+
 
 # ##import pdb; pdb.set_trace()
 
@@ -120,7 +120,7 @@ class node:
         self.lastStep = self._fieldStep
         self._fieldStep = node.time.currentStep
 
-    def __init__(self, name, role=ROLES[0], field=0, sqM=1):
+    def __init__(self, name, sqM=1, role=COMPOSITES[0], field=0):
         self.name = name
         if name in node.names:
             raise Exception("Duplicate name:" + name)
@@ -137,7 +137,10 @@ class node:
         self.inReady = [[], []]  # #paths & field connections
 
     def __str__(self):
-        val = self.name + "(" + self._role + ", field=" + str(self._field) + \
+        nm = self.name
+        if isinstance(self, person) and self._infected:
+            nm = "<*"+ self.name + "*>"
+        val = nm + "(" + self._role + ", field=" + str(self._field) + \
               ", fieldStep=" + str(self._fieldStep) + ", lastStep=" + \
               str(self.lastStep) + ")" + str(self.inReady[0])
         return val
@@ -181,7 +184,7 @@ class node:
             val = valA[i]
             cNode = path.nodes[path.curLoc]
             thisVDFM2 = cNode._sqM
-            total += val * thisVDFM2
+            total += (val * thisVDFM2)
         rv = (total / self._sqM)
         return rv
 
@@ -214,7 +217,7 @@ class node:
         def __str__(self):
             rv = []
             for i in self.nodes:
-                if i == self.nodes[self.curLoc]:
+                if (self.curLoc is not None) and i == self.nodes[self.curLoc]:
                     rv.append("*" + i.name + "*")
                 else:
                     rv.append(i.name)
@@ -230,10 +233,12 @@ class node:
                 # import pdb; pdb.set_trace()
                 self.forward *= -1
             targetNode = self.nodes[self.curLoc+self.forward]
-            if not isinstance(srcNode, PPE):
-                self._exposure += srcField * srcNode.delay
+            if not isinstance(srcNode, person):
+                self._exposure\
+                    += srcField * srcNode.delay
             else:
-                self._exposure *= srcNode.pFactor
+                self._exposure\
+                    += (1 - srcNode.pFactor) * srcField * srcNode.delay
             targetNode.ready(srcField, self)
             t1 = max(node.time.currentStep, srcNode._fieldStep) + srcNode.delay
             node.time.scheduleAt(targetNode, t1)
@@ -251,13 +256,14 @@ class node:
 
 class person(node):
     def __init__(self, name):
-        node.__init__(self, name, ROLES[1], 0, 1)
+        node.__init__(self, name, role="PERSON")
         self._infected = False
         self._infectedStep = -1
         node.persons.append(self)
         self.paths = []
         self.nextPath = None
         self._exposure = 0  # #time integral of field
+        self.pFactor = 0.0
         self.pNum = 0
 
     def reset(self):  # #for next step
@@ -265,6 +271,9 @@ class person(node):
         #  #self.lastStep = self._fieldStep
         #  #self._fieldStep = node.time.currentStep
         self.pNum = 0
+
+    def protect(self, amt=1.0):
+        self.pFactor = amt
 
     def process(self):  # #ALONG A PATH
         if (self.infected):
@@ -279,7 +288,8 @@ class person(node):
         tPath.forward *= -1
         # #assert(tPath.nodes[tPath.curLoc] == self)
         # #forward huskies
-        tPath.process()
+        if (self.pNum < 2):
+            tPath.process()
         # #next required to 
         self.inReady = [[], []]
         return self
@@ -298,44 +308,66 @@ class person(node):
         if (self.nextPath is None):
             self.nextPath = 0
         assert(ndA[0] == self)
-        for i in ndA:
-            if isinstance(i, PPE):
-                i.prsn = self
         self.paths.append(node.path(ndA))
 
     def calculate(self):
+        val = self.field
         if self.infected:
-            return 1.0
-        return self.field
-
-
-class PPE(node):
-    cnt = 0
-
-    def __init__(self, person=None):
-        if person is None:
-            node.__init__(self, name="ppe."+str(PPE.cnt), role=ROLES[2])
-        else:
-            node.__init__(self, person.name + ".ppe", role=ROLES[2])
-        PPE.cnt += 1
-        self.prsn = person
-        self.pFactor = .1
-
-    def calculate(self):
+            val = 1.0
         if len(self.inReady[0]) == 1:   # #push value along paths
-            return self.pFactor*self.inReady[0][0]
+            return (1-self.pFactor)*(val+self.inReady[0][0])
         else:
-            return self.field
+            return val
+
+
+class composite(node):
+    #  #   
+    COMPOSITES = {0:     ["ROOM", 12, None],
+                  1:     ["APT", 12, None],
+                  6:     ["WARD", 12, None],
+                  2:     ["FLOOR", 12, None],
+                  3:     ["BUILDING", 12, None],
+                  7:     ["BLOCK", 12, None],
+                  4:     ["HOSPITAL", 12, None],
+                  5:     ["REGION", 12, None]}
+    
+    cNum = 0
+
+    def __init__(self, name, level=0):
+        xx = composite.COMPOSITES[level]
+        self.level = level
+        node.__init__(self, name, role=xx[0], sqM=xx[1])
+        self.children = {}
+
+    def pathTo(self, pathA=[], prsn=None):  # #pathA[] index of ith child.
+        self.level = max(self.level, len(pathA))
+        if len(pathA) > 0:
+            cName = self.name + "." + str(pathA[0])
+            nd = node.names.get(cName)
+            if (nd is None):
+                nd = composite(cName, self.level-1)
+                self.children[pathA[0]] = nd
+            endPath = nd.pathTo(pathA[1:], prsn)
+            endPath.append(self)
+            return endPath
+        else:
+            if prsn is None:
+                prsn = person(self.name + "." + str(composite.cNum))
+                composite.cNum += 1
+            return [prsn, self]
 
 
 lb = person("len")
-sarah = person("sarah")
-gerry = person("gerry")
+#sarah = person("sarah")
+#gerry = person("gerry")
 lb.infected = True
-test = node("task", role=ROLES[3])
-gerry.addPath([gerry, test])
-lb.addPath([lb, test])
-sarah.addPath([sarah, PPE(person=sarah), test])
+test = composite("task", 0)
+# #gerry.addPath([gerry, test])
+# #lb.addPath([lb, test])
+#sarah.protect(.8)
+pt = test.pathTo([1, 2], lb)
+lb.addPath(pt)
+# #sarah.addPath([sarah, test])
 node.time.initSim()
 node.time.step()
 # #print("\nNode processed:\t"+str(node.time.processNextNode()))
