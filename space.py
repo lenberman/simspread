@@ -118,7 +118,6 @@ class node:
     persons = []
     time = future()
 
-
     def reset(self):  # #for next step
         self.lastStep = self._fieldStep
         self._fieldStep = node.time.currentStep
@@ -133,8 +132,9 @@ class node:
         self._fieldStep = node.time.currentStep
         self.lastStep = node.time.currentStep
         self.scheduledAt = -1
-        self.processInterval = 2
+        self.processInterval = 5
         self._sqM = sqM
+        self.maxInReady = 2  # #
         self.delay = 1
         self.crowdFactor = 1
         self.inReady = [[], []]  # #paths & field connections
@@ -159,22 +159,26 @@ class node:
         pathA = self.inReady[1]
         v = []
         p = []
+        nProcessed = 0
         for i in range(len(pathA)):
             tPath = pathA[i]
             #  #values furnished by inReady have path curLoc at source
             #  #assert(self == tPath.nodes[tPath.curLoc+tPath.forward])
             prevNode = tPath.nodes[tPath.curLoc]
             if prevNode._fieldStep + prevNode.delay <= self._fieldStep and \
-               prevNode._fieldStep + prevNode.delay > self.lastStep:
-                # #value from this path processed
+               prevNode._fieldStep + prevNode.delay > self.lastStep and \
+               nProcessed < self.maxInReady:
+                # #value from this path processed.  Respect maxInReady!
                 tPath.curLoc += tPath.forward
                 tPath.process()
+                nProcessed += 1
             else:
                 # #value this path next periodic activation
                 v.extend([valA[i]])
                 p.extend([pathA[i]])
         self.inReady = [v, p]
-        
+        if len(v) > 0:
+            self.reschedule()
         return self
 
     def calculate(self):  # #area weighted field of inputs
@@ -215,7 +219,7 @@ class node:
     class path:
         def __init__(self, array=[]):
             self.nodes = []
-            self.nodes.extend(array)  ##            self.to(array)
+            self.to(array)
             self.curLoc = None
             self.forward = -1
             self._exposure = 0
@@ -227,9 +231,19 @@ class node:
             self.nodes = [a].extend(self.nodes)
             self.curLoc = None
 
-        def adjoin(self, arr):
-            assert(arr[0] == self.nodes[len(self.nodes) - 1])
-            self.nodes.append(arr[1:])
+        def adjoin(self, path):
+            assert(path.nodes[0] == self.nodes[len(self.nodes) - 1])
+            self.nodes.extend(arr[1:])
+
+        def extendPath(self, extension):
+            if extension is None or len(extension.nodes) == 0 or len(self.nodes) == 0:
+                print(self)
+                import pdb; pdb.set_trace()
+            if not self.nodes[len(self.nodes) - 1] == extension.nodes[0]:
+                import pdb; pdb.set_trace()
+            self.paths.append(extension.nodes[1:])
+
+
 
         def __str__(self):
             rv = []
@@ -312,26 +326,13 @@ class person(node):
         self._infectedStep = node.time.currentStep
         print("at " + str(node.time.currentStep) + "INFECTING " + self.name)
 
-    #    def addPath(self, ndA):
-    #        if (self.nextPath is None):
-    #            self.nextPath = 0
-    #        if self.paths[self.nextPath].curLoc is None:
-    #            self.paths[self.nextPath].curLoc = 0
-    #        if ndA[0] == self:
-    #            self.paths.append(node.path(ndA))
-    #        else:  # #
-    #            assert(not isinstance(ndA[0], person))
-
     def addPath(self, path):
         if (self.nextPath is None):
             self.nextPath = 0
-        ##assert(ndA[0] == self)
+        assert(path.nodes[0] == self)
         self.paths.append(path)
 
-
-
-            
-
+        
     def calculate(self):
         val = self._field
         if self.infected:
@@ -385,19 +386,14 @@ class composite(node):
             return endPath
         else:
             if bNode is None:
-                prsn = person(self.name + "." + str(composite.cNum))
+                bNode = person(self.name + ".PERSON" + str(composite.cNum))
                 composite.cNum += 1
             return node.path([bNode, self])
 
 
-class building(composite):
-    def __init__(self, address, shape=[1, 8, 1, 8]):
-        self.roomsPerApt = shape[0]
-        self.aptPerFl = shape[1]
-        self.numElevators = shape[2]
-        self.numFloors = shape[3]
 
-        
+
+
 lb = person("len")
 sarah = person("sarah")
 lb.infected = True
