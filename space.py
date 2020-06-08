@@ -1,8 +1,4 @@
-COMPOSITES = [ "ROOM", "APT", "WARD" "FLOOR", "BUILDING", "BLOCK",  "HOSPITAL",  "REGION"]
-
-TYPES = [  "PERSON", "BAR", "RESTAURANT", "STORE",  "MEDICAL", "BUS", "CAR", "CARRIAGE", "PLATFORM", "BUSSTOP",  "ELEVATOR", "STAIRWAY", "STREET"]
-
-
+#!/usr/bin/python3
 # ##import pdb; pdb.set_trace()
 
 
@@ -112,15 +108,19 @@ class future:
 
     
 class node:
+    TYPES = ["ROOM", "PERSON", "BAR", "RESTAURANT", "STORE",  "MEDICAL", "BUS",
+             "CAR", "CARRIAGE", "PLATFORM", "BUSSTOP",  "ELEVATOR", "STAIRWAY",
+             "STREET", "COMPOSITE"]
     names = {}
     persons = []
     time = future()
+
 
     def reset(self):  # #for next step
         self.lastStep = self._fieldStep
         self._fieldStep = node.time.currentStep
 
-    def __init__(self, name, sqM=1, role=COMPOSITES[0], field=0):
+    def __init__(self, name, sqM=1, role=TYPES[0], field=0):
         self.name = name
         if name in node.names:
             raise Exception("Duplicate name:" + name)
@@ -130,7 +130,7 @@ class node:
         self._fieldStep = node.time.currentStep
         self.lastStep = node.time.currentStep
         self.scheduledAt = -1
-        self.scheduleInterval = 2
+        self.processInterval = 2
         self._sqM = sqM
         self.delay = 1
         self.crowdFactor = 1
@@ -147,11 +147,11 @@ class node:
         return val
 
     def process(self):
+        self.field = self.calculate()
         if (True):
             print("\nProcessing(" + str(self.name) + ") in:\t" +
-                  str(self.inReady[0]))
+                  str(self.inReady[0]) + ", field=" + str(self.field))
         #import pdb; pdb.set_trace()
-        self.field = self.calculate()
         valA = self.inReady[0]
         pathA = self.inReady[1]
         v = []
@@ -212,10 +212,21 @@ class node:
     class path:
         def __init__(self, array):
             self.nodes = []
-            self.nodes.extend(array)
+            self.to(array)
             self.curLoc = 0
             self.forward = -1
             self._exposure = 0
+
+        def to(self, a):
+            self.nodes.extend(a)
+
+        def frm(self, a):
+            self.nodes = [a].extend(self.nodes)
+            self.curLoc = None
+
+        def adjoin(self, arr):
+            assert(arr[0] == self.nodes[len(self.nodes) - 1])
+            self.nodes.append(arr[1:])
 
         def __str__(self):
             rv = []
@@ -247,15 +258,6 @@ class node:
             node.time.scheduleAt(targetNode, t1)
             return self
 
-        def augmentPath(self, arr):
-            if len(self.nodes) == 0:
-                self.nodes.extend(arr)
-                return
-            if (arr[0] == self.nodes[len(self.nodes) - 1]):
-                self.nodes.append(arr[1:])
-            else:
-                self.nodes.append(arr)
-
 
 class person(node):
     def __init__(self, name):
@@ -266,7 +268,7 @@ class person(node):
         self.paths = []
         self.nextPath = None
         self._exposure = 0  # #time integral of field
-        self.pFactor = 0.0
+        self.pFactor = 0.0  # #protection of PPE
         self.pNum = 0
 
     def reset(self):  # #for next step
@@ -280,7 +282,7 @@ class person(node):
 
     def process(self):  # #ALONG A PATH
         if (self.infected):
-            self.field = 1   # #assignment overloaded in node
+            self._field = 1   # #assignment overloaded in node
         tPath = self.paths[self.nextPath]
         if self.pNum < 2:
             self.pNum += 1
@@ -307,42 +309,67 @@ class person(node):
         self._infectedStep = node.time.currentStep
         print("at " + str(node.time.currentStep) + "INFECTING " + self.name)
 
+    #    def addPath(self, ndA):
+    #        if (self.nextPath is None):
+    #            self.nextPath = 0
+    #        if self.paths[self.nextPath].curLoc is None:
+    #            self.paths[self.nextPath].curLoc = 0
+    #        if ndA[0] == self:
+    #            self.paths.append(node.path(ndA))
+    #        else:  # #
+    #            assert(not isinstance(ndA[0], person))
+
     def addPath(self, ndA):
         if (self.nextPath is None):
             self.nextPath = 0
         assert(ndA[0] == self)
         self.paths.append(node.path(ndA))
 
+
+
+            
+
     def calculate(self):
-        val = self.field
+        val = self._field
         if self.infected:
             val = 1.0
-        if len(self.inReady[0]) == 1:   # #push value along paths
+        if len(self.inReady[0]) == 1:   # #value path end
             return (1-self.pFactor)*(val+self.inReady[0][0])
         else:
             return val
 
 
 class composite(node):
-    #  #   
-    COMPOSITES = {0:     ["ROOM", 12, None],
-                  1:     ["APT", 12, None],
-                  6:     ["WARD", 12, None],
-                  2:     ["FLOOR", 12, None],
-                  3:     ["BUILDING", 12, None],
-                  7:     ["BLOCK", 12, None],
-                  4:     ["HOSPITAL", 12, None],
-                  5:     ["REGION", 12, None]}
+    #  #spaces with different characteristics
+    COMPOSITES = {0:     ["ROOM", 1, None],
+                  1:     ["APT", 1, None],
+                  6:     ["WARD", 1, None],
+                  2:     ["FLOOR", 1, None],
+                  3:     ["BUILDING", 1, None],
+                  7:     ["BLOCK", 1, None],
+                  4:     ["HOSPITAL", 1, None],
+                  8:     ["ELEVATOR", 1, None],
+                  5:     ["REGION", 1, None]}
     
     cNum = 0
 
-    def __init__(self, name, level=0):
+    def __init__(self, name, level=0, role=COMPOSITES[0][0], nds=[]):
         xx = composite.COMPOSITES[level]
         self.level = level
-        node.__init__(self, name, role=xx[0], sqM=xx[1])
+        node.__init__(self, name, role=role, sqM=xx[1])
         self.children = {}
+        self.addChildren(nds)
 
-    def pathTo(self, pathA=[], prsn=None):  # #pathA[] index of ith child.
+    def addChildren(self, cArray):
+        j = len(self.children.values()) - 1
+        for i in cArray:
+            j += 1
+            assert(isinstance(i, composite))
+            self.children[j] = i
+
+    # #returns array of nodes
+
+    def pathTo(self, pathA=[], prsn=None):  # #path to person through children
         self.level = max(self.level, len(pathA))
         if len(pathA) > 0:
             cName = self.name + "." + str(pathA[0])
@@ -360,17 +387,25 @@ class composite(node):
             return [prsn, self]
 
 
+class building(composite):
+    def __init__(self, address, shape=[1, 8, 1, 8]):
+        self.roomsPerApt = shape[0]
+        self.aptPerFl = shape[1]
+        self.numElevators = shape[2]
+        self.numFloors = shape[3]
+
+        
 lb = person("len")
-#sarah = person("sarah")
-#gerry = person("gerry")
+sarah = person("sarah")
 lb.infected = True
 test = composite("task", 0)
+# #gerry = person("gerry")
 # #gerry.addPath([gerry, test])
 # #lb.addPath([lb, test])
-#sarah.protect(.8)
+sarah.protect(.8)
 pt = test.pathTo([1, 2], lb)
 lb.addPath(pt)
-# #sarah.addPath([sarah, test])
+sarah.addPath([sarah, test])
 node.time.initSim()
 node.time.step()
 # #print("\nNode processed:\t"+str(node.time.processNextNode()))

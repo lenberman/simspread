@@ -22,6 +22,9 @@ Disease transmision:
            (VDF = 1)  is 1.
  
 Simple model:
-1)Infected person produces  (1/NSTEPS)/step units
+
+1)Infected person produces  some (default=(1/NSTEPS)/step units)
 with VDF 
-2)Probability of infection ~ exponential trailing sum of VDF
+2)Probability of infection ~ exponential trailing average of VDF
+
+
