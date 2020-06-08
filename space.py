@@ -61,6 +61,9 @@ class future:
             ii.reset()  # # reset
             if isinstance(ii,person):
                 self.scheduleAt(ii, self.currentStep)
+                pth = ii.paths[ii.nextPath]
+                if pth.curLoc is None:
+                    pth.curLoc = 0
 
     def step(self):  # #step(s) must be preceded by initSim
         self.finish()  # #paths have ONE or TWO person nodes.
@@ -210,15 +213,15 @@ class node:
         self._fieldStep = node.time.currentStep
 
     class path:
-        def __init__(self, array):
+        def __init__(self, array=[]):
             self.nodes = []
-            self.to(array)
-            self.curLoc = 0
+            self.nodes.extend(array)  ##            self.to(array)
+            self.curLoc = None
             self.forward = -1
             self._exposure = 0
 
         def to(self, a):
-            self.nodes.extend(a)
+           self.nodes.extend(a)
 
         def frm(self, a):
             self.nodes = [a].extend(self.nodes)
@@ -319,11 +322,11 @@ class person(node):
     #        else:  # #
     #            assert(not isinstance(ndA[0], person))
 
-    def addPath(self, ndA):
+    def addPath(self, path):
         if (self.nextPath is None):
             self.nextPath = 0
-        assert(ndA[0] == self)
-        self.paths.append(node.path(ndA))
+        ##assert(ndA[0] == self)
+        self.paths.append(path)
 
 
 
@@ -369,7 +372,7 @@ class composite(node):
 
     # #returns array of nodes
 
-    def pathTo(self, pathA=[], prsn=None):  # #path to person through children
+    def pathTo(self, pathA=[], bNode=None):  # #path to person through children
         self.level = max(self.level, len(pathA))
         if len(pathA) > 0:
             cName = self.name + "." + str(pathA[0])
@@ -377,14 +380,14 @@ class composite(node):
             if (nd is None):
                 nd = composite(cName, self.level-1)
                 self.children[pathA[0]] = nd
-            endPath = nd.pathTo(pathA[1:], prsn)
-            endPath.append(self)
+            endPath = nd.pathTo(pathA[1:], bNode)
+            endPath.to([self])
             return endPath
         else:
-            if prsn is None:
+            if bNode is None:
                 prsn = person(self.name + "." + str(composite.cNum))
                 composite.cNum += 1
-            return [prsn, self]
+            return node.path([bNode, self])
 
 
 class building(composite):
@@ -405,10 +408,10 @@ test = composite("task", 0)
 sarah.protect(.8)
 pt = test.pathTo([1, 2], lb)
 lb.addPath(pt)
-sarah.addPath([sarah, test])
+sarah.addPath(node.path([sarah, test]))
 node.time.initSim()
 node.time.step()
-# #print("\nNode processed:\t"+str(node.time.processNextNode()))
+# #print("\nNode procesed:\t"+str(node.time.processNextNode()))
 # ##print("\nNode processed:\t"+str(node.time.processNextNode()))
 # #node.time.finish()
 print(node.time)
