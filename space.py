@@ -19,11 +19,13 @@ class disease:
 
 
 class future:
-    events = {}
-    currentStep = 0
-    maxStep = 0
-    minutesPerStep = 6
 
+    def __init__(self):
+        self.events = {}
+        self.currentStep = 0
+        self.maxStep = 0
+        self.minutesPerStep = 6
+        
     def __str__(self):
         rv = "Current " + str(self.currentStep) + ", max " + str(self.maxStep)
         rv += str(self.events)
@@ -56,8 +58,8 @@ class future:
     def initSim(self):
         self.currentStep += 1
         self.maxStep = max(self.maxStep, self.currentStep+1)
-        assert(self == node.time)
-        for ii in node.names.values():
+        assert(self == currentNodeGroup.time)
+        for ii in currentNodeGroup.names.values():
             ii.reset()  # # reset
             if isinstance(ii,person):
                 self.scheduleAt(ii, self.currentStep)
@@ -109,28 +111,35 @@ class future:
                 return True
         return False
 
-    
+currentNodeGroup = None
+
+class nodeGroup:
+    def __init__(self):
+        self.names = {}
+        self.persons = []
+        self.time = future()
+        currentNodeGroup = self
+        
+currentNodeGroup = nodeGroup()    
 class node:
     TYPES = ["ROOM", "PERSON", "BAR", "RESTAURANT", "STORE",  "MEDICAL", "BUS",
              "CAR", "CARRIAGE", "PLATFORM", "BUSSTOP",  "ELEVATOR", "STAIRWAY",
              "STREET", "COMPOSITE"]
-    names = {}
-    persons = []
-    time = future()
 
     def reset(self):  # #for next step
         self.lastStep = self._fieldStep
-        self._fieldStep = node.time.currentStep
+        self._fieldStep = currentNodeGroup.time.currentStep
 
     def __init__(self, name, sqM=1, role=TYPES[0], field=0):
         self.name = name
-        if name in node.names:
+
+        if name in currentNodeGroup.names:
             raise Exception("Duplicate name:" + name)
-        node.names[name] = self
+        currentNodeGroup.names[name] = self
         self._role = role
         self._field = field  # #infectivity
-        self._fieldStep = node.time.currentStep
-        self.lastStep = node.time.currentStep
+        self._fieldStep = currentNodeGroup.time.currentStep
+        self.lastStep = currentNodeGroup.time.currentStep
         self.scheduledAt = -1
         self.processInterval = 5
         self._sqM = sqM
@@ -214,7 +223,7 @@ class node:
         else:
             self._field = val
         self.lastStep = self._fieldStep
-        self._fieldStep = node.time.currentStep
+        self._fieldStep = currentNodeGroup.time.currentStep
 
     class path:
         def __init__(self, array=[]):
@@ -271,8 +280,8 @@ class node:
                 self._exposure\
                     += (1 - srcNode.pFactor) * srcField * srcNode.delay
             targetNode.ready(srcField, self)
-            t1 = max(node.time.currentStep, srcNode._fieldStep) + srcNode.delay
-            node.time.scheduleAt(targetNode, t1)
+            t1 = max(currentNodeGroup.time.currentStep, srcNode._fieldStep) + srcNode.delay
+            currentNodeGroup.time.scheduleAt(targetNode, t1)
             return self
 
 
@@ -281,7 +290,7 @@ class person(node):
         node.__init__(self, name, role="PERSON")
         self._infected = False
         self._infectedStep = -1
-        node.persons.append(self)
+        currentNodeGroup.persons.append(self)
         self.paths = []
         self.nextPath = None
         self._exposure = 0  # #time integral of field
@@ -291,7 +300,7 @@ class person(node):
     def reset(self):  # #for next step
         node.reset(self)
         #  #self.lastStep = self._fieldStep
-        #  #self._fieldStep = node.time.currentStep
+        #  #self._fieldStep = currentNodeGroup.time.currentStep
         self.pNum = 0
 
     def protect(self, amt=1.0):
@@ -323,8 +332,8 @@ class person(node):
     @infected.setter
     def infected(self, val):
         self._infected = val
-        self._infectedStep = node.time.currentStep
-        print("at " + str(node.time.currentStep) + "INFECTING " + self.name)
+        self._infectedStep = currentNodeGroup.time.currentStep
+        print("at " + str(currentNodeGroup.time.currentStep) + "INFECTING " + self.name)
 
     def addPath(self, path):
         if (self.nextPath is None):
@@ -377,7 +386,7 @@ class composite(node):
         self.level = max(self.level, len(pathA))
         if len(pathA) > 0:
             cName = self.name + "." + str(pathA[0])
-            nd = node.names.get(cName)
+            nd = currentNodeGroup.names.get(cName)
             if (nd is None):
                 nd = composite(cName, self.level-1)
                 self.children[pathA[0]] = nd
