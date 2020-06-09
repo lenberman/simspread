@@ -118,9 +118,13 @@ class nodeGroup:
         self.names = {}
         self.persons = []
         self.time = future()
-        currentNodeGroup = self
         
-currentNodeGroup = nodeGroup()    
+currentNodeGroup = nodeGroup()
+
+def getCurrentNodeGroup():
+    return currentNodeGroup
+
+
 class node:
     TYPES = ["ROOM", "PERSON", "BAR", "RESTAURANT", "STORE",  "MEDICAL", "BUS",
              "CAR", "CARRIAGE", "PLATFORM", "BUSSTOP",  "ELEVATOR", "STAIRWAY",
@@ -134,7 +138,7 @@ class node:
         self.name = name
 
         if name in currentNodeGroup.names:
-            raise Exception("Duplicate name:" + name)
+            print("Recreating " + str(name))
         currentNodeGroup.names[name] = self
         self._role = role
         self._field = field  # #infectivity
@@ -364,7 +368,6 @@ class composite(node):
                   8:     ["ELEVATOR", 1, None],
                   5:     ["REGION", 1, None]}
     
-    cNum = 0
 
     def __init__(self, name, level=0, role=COMPOSITES[0][0], nds=[]):
         xx = composite.COMPOSITES[level]
@@ -395,8 +398,7 @@ class composite(node):
             return endPath
         else:
             if bNode is None:
-                bNode = person(self.name + ".PERSON" + str(composite.cNum))
-                composite.cNum += 1
+                bNode = person(self.name + "." + str(len(currentNodeGroup.names.values())))
             return node.path([bNode, self])
 
 
@@ -407,11 +409,11 @@ class population:
         self.maxLevel = maxLevel
         self.shape = shape
         if name is None:
-            name = "P:" + str(composite.cNum)
-            composite.cNum += 1
+            name = "P:" + str(len(currentNodeGroup.names.keys()))
         self.composite = composite(name)
         self.paths=[]
-
+        
+        
     def showPaths(self):
         for i in self.paths:
             print(i)
@@ -424,13 +426,15 @@ class population:
         pass
 
         
-    def populate(self, types=person):  # #should depend on maxLevel for distribution of nonCompos
+    def populate(self, typ=person):  # #should depend on maxLevel for distribution of nonCompos
         nn = 1
         for i in range(0, self.num-1):
             pathA = []
             for i in range(0, len(self.shape) - 1):
                 pathA.append(random.randint(0, self.shape[i]-1))
-            self.paths.append(self.composite.pathTo(pathA, tp=types))
+            self.paths.append(self.composite.pathTo
+                              (pathA,
+                               typ(str(len(currentNodeGroup.names.values()))) ))
 
 
     def nonCompos(self):  #  #return non-composite nodes attached to composite
