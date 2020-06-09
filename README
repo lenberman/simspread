@@ -27,4 +27,8 @@ Simple model:
 with VDF 
 2)Probability of infection ~ exponential trailing average of VDF
 
+A population is a composite with leaves of people
+A business district is a composite with leaf nodes of various types
+
+In  uses of composites, different node types may be handled differently.
 

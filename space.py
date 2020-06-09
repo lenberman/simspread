@@ -1,6 +1,6 @@
-#!/usr/bin/python3
+#  #!/usr/bin/python3
 # ##import pdb; pdb.set_trace()
-
+import random
 
 class disease:
     def __init__(self, mps=6, asym=1000, sym=1500,
@@ -373,7 +373,7 @@ class composite(node):
 
     # #returns array of nodes
 
-    def pathTo(self, pathA=[], bNode=None):  # #path to person through children
+    def pathTo(self, pathA=[], bNode=None, tp=person):  # #path to person through children
         self.level = max(self.level, len(pathA))
         if len(pathA) > 0:
             cName = self.name + "." + str(pathA[0])
@@ -391,23 +391,44 @@ class composite(node):
             return node.path([bNode, self])
 
 
+class population:
+    def __init__(self, name=None, N=10, shape=[1,8,2,12,4], maxLevel=0, types=[person] ):
+        self.num = N
+        self.pctInf = 0
+        self.maxLevel = maxLevel
+        self.shape = shape
+        if name is None:
+            name = "P:" + str(composite.cNum)
+            composite.cNum += 1
+        self.composite = composite(name)
+        self.paths=[]
+
+    def showPaths(self):
+        for i in self.paths:
+            print(i)
+
+    def setInfPct(self, val=.1):
+        self.pctInf = val
+
+
+    def initSim(arg):
+        pass
+
+        
+    def populate(self, types=person):  # #should depend on maxLevel for distribution of nonCompos
+        nn = 1
+        for i in range(0, self.num-1):
+            pathA = []
+            for i in range(0, len(self.shape) - 1):
+                pathA.append(random.randint(0, self.shape[i]-1))
+            self.paths.append(self.composite.pathTo(pathA, tp=types))
+
+
+    def nonCompos(self):  #  #return non-composite nodes attached to composite
+        pass
 
 
 
-lb = person("len")
-sarah = person("sarah")
-lb.infected = True
-test = composite("task", 0)
-# #gerry = person("gerry")
-# #gerry.addPath([gerry, test])
-# #lb.addPath([lb, test])
-sarah.protect(.8)
-pt = test.pathTo([1, 2], lb)
-lb.addPath(pt)
-sarah.addPath(node.path([sarah, test]))
-node.time.initSim()
-node.time.step()
-# #print("\nNode procesed:\t"+str(node.time.processNextNode()))
-# ##print("\nNode processed:\t"+str(node.time.processNextNode()))
-# #node.time.finish()
-print(node.time)
+xx=population()
+xx.populate()
+xx.showPaths()
