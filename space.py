@@ -117,6 +117,7 @@ class nodeGroup:
     def __init__(self):
         self.names = {}
         self.persons = []
+        self.stepsPerDay = 1000
         self.time = future()
         self.seed = random.getstate()
         
@@ -141,17 +142,18 @@ class node:
         if name in currentNodeGroup.names:
             print("Recreating " + str(name))
         currentNodeGroup.names[name] = self
-        self._role = role
         self._field = field  # #infectivity
         self._fieldStep = currentNodeGroup.time.currentStep
-        self.lastStep = currentNodeGroup.time.currentStep
-        self.scheduledAt = -1
-        self.processInterval = 5
+        self._role = role
         self._sqM = sqM
-        self.maxInReady = 2  # #
-        self.delay = 1
         self.crowdFactor = 1
+        self.delay = 1
         self.inReady = [[], []]  # #paths & field connections
+        self.lastStep = currentNodeGroup.time.currentStep
+        self.maxInReady = 2  # #
+        self.processInterval = 5
+        self.scheduledAt = -1
+
 
     def __str__(self):
         nm = self.name
@@ -192,6 +194,7 @@ class node:
                 p.extend([pathA[i]])
         self.inReady = [v, p]
         if len(v) > 0:
+            import pdb; pdb.set_trace()
             self.reschedule()
         return self
 
@@ -235,6 +238,8 @@ class node:
             self.nodes = []
             self.to(array)
             self.curLoc = None
+            if len(array) > 0:
+                self.curLoc = 0
             self.forward = -1
             self._exposure = 0
 
@@ -297,9 +302,14 @@ class room(node):
         node.__init__(self, name )
 
 
+
 class bar(node):
     def __init__(self, name):
         node.__init__(self, name )
+        self.sqM = 20
+        self.maxInReady = 20  
+        self.delay = 100   # #time spent in the bar
+
 
 
 class restaurant(node):
@@ -372,9 +382,13 @@ class person(node):
 
     def reset(self):  # #for next step
         node.reset(self)
-        #  #self.lastStep = self._fieldStep
-        #  #self._fieldStep = currentNodeGroup.time.currentStep
+        if not len(self.paths) > 0:
+            print("person with no paths reset")
+            print(self)
+            return
         self.pNum = 0
+        if self.nextPath is None:
+            self.nextPath = 0
 
     def protect(self, amt=1.0):
         self.pFactor = amt
@@ -486,15 +500,21 @@ dispatch = {"room": room, "person": person, "bar": bar,
             "street": street, "composite": composite}
 
 class population:
+    class accum:
+        acc = {"nInf": 0, "nInfSq": 0, "pField": 0, "pFieldSq": 0,
+               "nPerson": 0, "vField": 0, "vFieldSq": 0,  "ndNum": 0}
+
     def __init__(self, name=None):
         self.pctInf = 0
+        population.accum()
         if name is None:
             name = "P" + str(len(currentNodeGroup.names.keys()))
         self.composite = composite(name)
         self.paths = {}   # #arranged by start type
         for nm in dispatch.keys():
             self.paths[nm] = []
-        
+        self.nodeGroup = currentNodeGroup
+
     def showPaths(self):
         print("Population(" + self.composite.name + ")")
         for i in dispatch.keys():  # #for each type
@@ -504,6 +524,24 @@ class population:
                 for j in paths_SrcType:
                     print(str(j.nodes[0].field)+"\t"+j.__str__())
 
+    def showInfState(self, all=False, dx=.1):
+        pass
+
+    def calcState(self):
+        acc = population.accum().acc
+        for nd in currentNodeGroup.names.values():
+            field = nd.field
+            acc["ndNum"] += 1
+            acc["vField"] += field
+            acc["vFieldSq"] += field*field
+            if isinstance(nd, person):
+                if nd.infected:
+                    acc["nInf"] += 1
+                acc["pField"] += field
+                acc["pFieldSq"] += field*field
+                acc["nPerson"] += 1
+        return acc
+
     def setInfPct(self, val=.25):
         self.pctInf = val
         for prsn in currentNodeGroup.persons:
@@ -512,8 +550,9 @@ class population:
             else:
                 prsn.infected = False
 
-    def initSim(arg):
-        pass
+    def initSim(self):
+        currentNodeGroup = self.nodeGroup
+        currentNodeGroup.time.initSim()
 
     def splice(self, path1, path2):   # #minimal path connecting endpts
         l1 = len(path1.nodes)
@@ -522,7 +561,7 @@ class population:
         for j in range(1, min(l1, l2)):
             if path2.nodes[l2 - j] != path1.nodes[l1 - j]:
                 start = path1.nodes[:l1 - j + 1].copy()
-                end = path2.nodes[:l2 -j + 1].copy()
+                end = path2.nodes[:l2 - j + 1].copy()
                 end.reverse()
                 start.extend(end)
                 return node.path(start)
@@ -536,13 +575,14 @@ class population:
             
         for i in range(0, num):
             pathA = []
-            for i in range(0, len(shape) - 1):
-                pathA.append(random.randint(0, shape[i]-1))
-            self.paths[typeName] .\
-                append(
-                    self.composite.pathTo(
-                        pathA,
-                        typ(typeName + str(len(currentNodeGroup.names.values())))))
+            for j in range(0, len(shape) - 1):
+                pathA.append(random.randint(0, shape[j]-1))
+            nodeName = typeName + str(len(currentNodeGroup.names.values()))
+            ithPath = self.composite.pathTo(pathA, typ(nodeName))
+            ithNode = ithPath.nodes[ithPath.curLoc]
+            self.paths[typeName].append(ithPath)
+            if (typeName == "person"):
+                ithNode . addPath(ithPath)
 
     def connectTypes(self, t1, t2, ctl=0):
         startSegmentPaths = self.paths[t1]
@@ -559,9 +599,11 @@ class population:
 x = dispatch["room"]("ROOM")
 print(x)
 xx = population()
-xx.populate()
+xx.populate(typ=person, num=5)
 # #xx.showPaths()
 xx.populate(typ=dispatch["bar"], num=3)
 xx.setInfPct()  # #default 10%
 xx.connectTypes("person", "bar")
-xx.showPaths()
+print(xx.calcState())
+xx.showInfState()
+xx.initSim()
