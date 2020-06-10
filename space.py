@@ -406,8 +406,7 @@ class person(node):
     def infected(self, val):
         self._infected = val
         self._infectedStep = currentNodeGroup.time.currentStep
-        print("at " + str(currentNodeGroup.time.currentStep) + "INFECTING " + self.name)
-
+        
     def addPath(self, path):
         if (self.nextPath is None):
             self.nextPath = 0
@@ -436,7 +435,6 @@ class composite(node):
                   4:     ["HOSPITAL", 1, None],
                   8:     ["ELEVATOR", 1, None],
                   5:     ["REGION", 1, None]}
-    
 
     def __init__(self, name, level=0, role=COMPOSITES[0][0], nds=[]):
         xx = composite.COMPOSITES[level]
@@ -454,7 +452,8 @@ class composite(node):
 
     # #returns array of nodes
 
-    def pathTo(self, pathA=[], bNode=None, tp=person):  # #path to person through children
+    def pathTo(self, pathA=[], bNode=None, tp=person):
+        # #path to person through children
         self.level = max(self.level, len(pathA))
         if len(pathA) > 0:
             cName = self.name + "." + str(pathA[0])
@@ -467,7 +466,8 @@ class composite(node):
             return endPath
         else:
             if bNode is None:
-                bNode = person(self.name + "." + str(len(currentNodeGroup.names.values())))
+                bNode = tp(self.name + "." +
+                           str(len(currentNodeGroup.names.values())))
             return node.path([bNode, self])
 
 
@@ -489,7 +489,7 @@ class population:
     def __init__(self, name=None):
         self.pctInf = 0
         if name is None:
-            name = "P:" + str(len(currentNodeGroup.names.keys())) + ":"
+            name = "P" + str(len(currentNodeGroup.names.keys()))
         self.composite = composite(name)
         self.paths = {}   # #arranged by start type
         for nm in dispatch.keys():
@@ -502,9 +502,9 @@ class population:
             if len(paths_SrcType) > 0:  # #if something is there
                 print("Paths to type:" + i)
                 for j in paths_SrcType:
-                    print("\t"+j.__str__())
+                    print(str(j.nodes[0].field)+"\t"+j.__str__())
 
-    def setInfPct(self, val=.1):
+    def setInfPct(self, val=.25):
         self.pctInf = val
         for prsn in currentNodeGroup.persons:
             if random.uniform(0, 1) < val:
@@ -515,26 +515,53 @@ class population:
     def initSim(arg):
         pass
 
+    def splice(self, path1, path2):   # #minimal path connecting endpts
+        l1 = len(path1.nodes)
+        l2 = len(path2.nodes)
+        assert(path2.nodes[l2 - 1] == path1.nodes[l1 - 1])
+        for j in range(1, min(l1, l2)):
+            if path2.nodes[l2 - j] != path1.nodes[l1 - j]:
+                start = path1.nodes[:l1 - j + 1].copy()
+                end = path2.nodes[:l2 -j + 1].copy()
+                end.reverse()
+                start.extend(end)
+                return node.path(start)
+
     def populate(self, typ=dispatch["person"], num=10, maxLevel=0, shape=[1,8,2,12,4]):
         # #maxLevel to control distributions of nonCompos
         for ii in dispatch.keys():
             if dispatch[ii] == typ:
                 typeName = ii
+                break
             
         for i in range(0, num):
             pathA = []
             for i in range(0, len(shape) - 1):
                 pathA.append(random.randint(0, shape[i]-1))
             self.paths[typeName] .\
-                append(self.composite.pathTo(pathA,
-                                         typ(typeName + str(len(currentNodeGroup.names.values())))))
+                append(
+                    self.composite.pathTo(
+                        pathA,
+                        typ(typeName + str(len(currentNodeGroup.names.values())))))
+
+    def connectTypes(self, t1, t2, ctl=0):
+        startSegmentPaths = self.paths[t1]
+        endSegmentPaths = self.paths[t2]
+        l1 = len(startSegmentPaths)
+        l2 = len(endSegmentPaths)
+        assert(len(startSegmentPaths) != 0 and len(endSegmentPaths) != 0)
+        for i in range(0, max(l1, l2)):
+            start = startSegmentPaths[i % l1]
+            end = endSegmentPaths[i % l2]
+            startSegmentPaths.append(self.splice(start, end))
 
 
 x = dispatch["room"]("ROOM")
 print(x)
 xx = population()
 xx.populate()
-xx.showPaths()
+# #xx.showPaths()
 xx.populate(typ=dispatch["bar"], num=3)
 xx.setInfPct()  # #default 10%
+xx.connectTypes("person", "bar")
 xx.showPaths()
