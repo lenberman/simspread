@@ -118,6 +118,7 @@ class nodeGroup:
         self.names = {}
         self.persons = []
         self.time = future()
+        self.seed = random.getstate()
         
 currentNodeGroup = nodeGroup()
 
@@ -289,6 +290,74 @@ class node:
             return self
 
 
+
+#import spaceTypes
+class room(node):
+    def __init__(self, name):
+        node.__init__(self, name )
+
+
+class bar(node):
+    def __init__(self, name):
+        node.__init__(self, name )
+
+
+class restaurant(node):
+    def __init__(self, name):
+        node.__init__(self, name )
+
+
+class store(node):
+    def __init__(self, name):
+        node.__init__(self, name )
+
+
+class medical(node):
+    def __init__(self, name):
+        node.__init__(self, name )
+
+
+class bus(node):
+    def __init__(self, name):
+        node.__init__(self, name )
+
+
+class car(node):
+    def __init__(self, name):
+        node.__init__(self, name )
+
+
+class carriage(node):
+    def __init__(self, name):
+        node.__init__(self, name )
+
+
+class platform(node):
+    def __init__(self, name):
+        node.__init__(self, name )
+
+
+class busstop(node):
+    def __init__(self, name):
+        node.__init__(self, name )
+
+
+class elevator(node):
+    def __init__(self, name):
+        node.__init__(self, name )
+
+
+class stairway(node):
+    def __init__(self, name):
+        node.__init__(self, name )
+
+
+class street(node):
+    def __init__(self, name):
+        node.__init__(self, name )
+
+
+
 class person(node):
     def __init__(self, name):
         node.__init__(self, name, role="PERSON")
@@ -402,46 +471,70 @@ class composite(node):
             return node.path([bNode, self])
 
 
-class population:
-    def __init__(self, name=None, N=10, shape=[1,8,2,12,4], maxLevel=0, types=[person] ):
-        self.num = N
-        self.pctInf = 0
-        self.maxLevel = maxLevel
-        self.shape = shape
-        if name is None:
-            name = "P:" + str(len(currentNodeGroup.names.keys()))
-        self.composite = composite(name)
-        self.paths=[]
+class building(composite):
+    def __init__(self, address, shape=[1, 8, 1, 8]):
+        self.roomsPerApt = shape[0]
+        self.aptPerFl = shape[1]
+        self.numElevators = shape[2]
+        self.numFloors = shape[3]
+
         
+dispatch = {"room": room, "person": person, "bar": bar,
+            "restaurant": restaurant, "store": store, "medical":  medical,
+            "bus": bus, "car": car, "carriage": carriage, "platform": platform,
+            "busstop": busstop, "elevator":  elevator, "stairway": stairway,
+            "street": street, "composite": composite}
+
+class population:
+    def __init__(self, name=None):
+        self.pctInf = 0
+        if name is None:
+            name = "P:" + str(len(currentNodeGroup.names.keys())) + ":"
+        self.composite = composite(name)
+        self.paths = {}   # #arranged by start type
+        for nm in dispatch.keys():
+            self.paths[nm] = []
         
     def showPaths(self):
-        for i in self.paths:
-            print(i)
+        print("Population(" + self.composite.name + ")")
+        for i in dispatch.keys():  # #for each type
+            paths_SrcType = self.paths[i]
+            if len(paths_SrcType) > 0:  # #if something is there
+                print("Paths to type:" + i)
+                for j in paths_SrcType:
+                    print("\t"+j.__str__())
 
     def setInfPct(self, val=.1):
         self.pctInf = val
-
+        for prsn in currentNodeGroup.persons:
+            if random.uniform(0, 1) < val:
+                prsn.infected = True
+            else:
+                prsn.infected = False
 
     def initSim(arg):
         pass
 
-        
-    def populate(self, typ=person):  # #should depend on maxLevel for distribution of nonCompos
-        nn = 1
-        for i in range(0, self.num-1):
+    def populate(self, typ=dispatch["person"], num=10, maxLevel=0, shape=[1,8,2,12,4]):
+        # #maxLevel to control distributions of nonCompos
+        for ii in dispatch.keys():
+            if dispatch[ii] == typ:
+                typeName = ii
+            
+        for i in range(0, num):
             pathA = []
-            for i in range(0, len(self.shape) - 1):
-                pathA.append(random.randint(0, self.shape[i]-1))
-            self.paths.append(self.composite.pathTo
-                              (pathA,
-                               typ(str(len(currentNodeGroup.names.values()))) ))
+            for i in range(0, len(shape) - 1):
+                pathA.append(random.randint(0, shape[i]-1))
+            self.paths[typeName] .\
+                append(self.composite.pathTo(pathA,
+                                         typ(typeName + str(len(currentNodeGroup.names.values())))))
 
 
-    def nonCompos(self):  #  #return non-composite nodes attached to composite
-        pass
-
-
-
-xx=population()
+x = dispatch["room"]("ROOM")
+print(x)
+xx = population()
 xx.populate()
+xx.showPaths()
+xx.populate(typ=dispatch["bar"], num=3)
+xx.setInfPct()  # #default 10%
 xx.showPaths()
