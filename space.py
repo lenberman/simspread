@@ -36,15 +36,14 @@ class future:
         # #print("\nSchedule " + str(nd) + " at " + str(time))
         if isinstance(nd, node):
             nodeCurrentSchedule = nd.scheduledAt
-            if time > nd.scheduledAt:
-                nd.scheduledAt = time
+            if nodeCurrentSchedule > time:
+                return
         else:  # #could be a path end
+            import pdb; pdb.set_trace()  
             nodeCurrentSchedule = -1
         self.maxStep = max(self.maxStep, time, nodeCurrentSchedule)
         if isinstance(nd, node):
-            if nodeCurrentSchedule > time:
-                return
-            else:  # # == move to end of this time,
+            if nodeCurrentSchedule == time:
                 ct = self.events.get(nodeCurrentSchedule)
                 if ct is not None:
                     ct.remove(nd)
@@ -52,6 +51,7 @@ class future:
         if ct is None:
             ct = []
             self.events[time] = ct
+        nd.scheduledAt = time
         ct.append(nd)
         # #print(self)
 
@@ -61,7 +61,7 @@ class future:
         assert(self == currentNodeGroup.time)
         for ii in currentNodeGroup.names.values():
             ii.reset()  # # reset
-            if isinstance(ii,person):
+            if isinstance(ii, person):
                 self.scheduleAt(ii, self.currentStep)
                 pth = ii.paths[ii.nextPath]
                 if pth.curLoc is None:
@@ -74,13 +74,13 @@ class future:
     def popNextNode(self):  # #null when events array is empty
         nn = self.events.get(self.currentStep)
         if nn is None:
-            keys = self.events.keys()
-            if len(keys) == 0:
-                return None
-            else:
-                self.currentStep = keys[0]
-                return self.popNextNode()
-        elif len(nn) == 0:
+            while nn is None:
+                if self.currentStep < self.maxStep:
+                    self.currentStep += 1
+                else:
+                    return None
+                nn = self.events.get(self.currentStep)
+        if len(nn) == 0:
             # #increment clock
             self.events.pop(self.currentStep, None)
             self.currentStep += 1
@@ -147,13 +147,12 @@ class node:
         self._role = role
         self._sqM = sqM
         self.crowdFactor = 1
-        self.delay = 1
+        self.delay = 1  # #steps ascribed to passage thru
         self.inReady = [[], []]  # #paths & field connections
         self.lastStep = currentNodeGroup.time.currentStep
-        self.maxInReady = 2  # #
+        self.maxInReady = 2  # #stores available values 
         self.processInterval = 5
         self.scheduledAt = -1
-
 
     def __str__(self):
         nm = self.name
@@ -165,6 +164,12 @@ class node:
         val += str(self.inReady[0])
         return val
 
+    def reschedule(self):
+        currentNodeGroup.time.scheduleAt(
+            self, currentNodeGroup.time.currentStep + self.processInterval)
+
+
+        
     def process(self):
         self.field = self.calculate()
         if (True):
@@ -181,9 +186,9 @@ class node:
             #  #values furnished by inReady have path curLoc at source
             #  #assert(self == tPath.nodes[tPath.curLoc+tPath.forward])
             prevNode = tPath.nodes[tPath.curLoc]
-            if prevNode._fieldStep + prevNode.delay <= self._fieldStep and \
-               prevNode._fieldStep + prevNode.delay > self.lastStep and \
-               nProcessed < self.maxInReady:
+            pAvail = prevNode._fieldStep + prevNode.delay
+            if pAvail <= self._fieldStep and nProcessed < self.maxInReady:
+                #  #and pAvail > self.lastStep and 
                 # #value from this path processed.  Respect maxInReady!
                 tPath.curLoc += tPath.forward
                 tPath.process()
@@ -194,7 +199,7 @@ class node:
                 p.extend([pathA[i]])
         self.inReady = [v, p]
         if len(v) > 0:
-            import pdb; pdb.set_trace()
+            #  #import pdb; pdb.set_trace()
             self.reschedule()
         return self
 
@@ -266,14 +271,19 @@ class node:
 
         def __str__(self):
             rv = []
+            if self.forward:
+                direction = "==>>>>"
+            else:
+                direction = "<<<<=="
             for i in self.nodes:
                 if (self.curLoc is not None) and i == self.nodes[self.curLoc]:
                     rv.append("*" + i.name + "*")
                 else:
                     rv.append(i.name)
-            return str(rv)
+            return direction + str(rv)
 
         def process(self):  # #one step at a time
+            # #determine src and dest for this step 
             srcNode = self.nodes[self.curLoc]
             srcField = srcNode.field
             if self.curLoc+self.forward < 0 or \
@@ -307,7 +317,8 @@ class bar(node):
     def __init__(self, name):
         node.__init__(self, name )
         self.sqM = 20
-        self.maxInReady = 20  
+        self.maxInReady = 20
+        self.processInterval = 5
         self.delay = 100   # #time spent in the bar
 
 
@@ -493,20 +504,22 @@ class building(composite):
         self.numFloors = shape[3]
 
         
-dispatch = {"room": room, "person": person, "bar": bar,
-            "restaurant": restaurant, "store": store, "medical":  medical,
-            "bus": bus, "car": car, "carriage": carriage, "platform": platform,
-            "busstop": busstop, "elevator":  elevator, "stairway": stairway,
-            "street": street, "composite": composite}
+dispatch = {"bar": bar, "bus": bus, "busstop": busstop, "car": car,
+            "carriage": carriage, "composite": composite,
+            "elevator":  elevator, "medical":  medical, "person": person,
+            "platform": platform, "restaurant": restaurant, "room": room,
+            "stairway": stairway, "store": store, "street": street}
 
 class population:
     class accum:
-        acc = {"nInf": 0, "nInfSq": 0, "pField": 0, "pFieldSq": 0,
-               "nPerson": 0, "vField": 0, "vFieldSq": 0,  "ndNum": 0}
+        acc = {"nInf": 0, "pField": 0.0, "pFieldSq": 0.0,
+               "nPerson": 0, "vField": 0.0, "vFieldSq": 0.0,  "ndNum": 0}
+        def __init__(self):
+            self.acc = population.accum.acc.copy()
 
     def __init__(self, name=None):
         self.pctInf = 0
-        population.accum()
+        self.acc = population.accum()
         if name is None:
             name = "P" + str(len(currentNodeGroup.names.keys()))
         self.composite = composite(name)
@@ -528,19 +541,19 @@ class population:
         pass
 
     def calcState(self):
-        acc = population.accum().acc
+        self.acc = population.accum()
         for nd in currentNodeGroup.names.values():
             field = nd.field
-            acc["ndNum"] += 1
-            acc["vField"] += field
-            acc["vFieldSq"] += field*field
+            self.acc.acc["ndNum"] += 1
+            self.acc.acc["vField"] += field
+            self.acc.acc["vFieldSq"] += field*field
             if isinstance(nd, person):
                 if nd.infected:
-                    acc["nInf"] += 1
-                acc["pField"] += field
-                acc["pFieldSq"] += field*field
-                acc["nPerson"] += 1
-        return acc
+                    self.acc.acc["nInf"] += 1
+                self.acc.acc["pField"] += field
+                self.acc.acc["pFieldSq"] += field*field
+                self.acc.acc["nPerson"] += 1
+        return self.acc
 
     def setInfPct(self, val=.25):
         self.pctInf = val
@@ -553,6 +566,14 @@ class population:
     def initSim(self):
         currentNodeGroup = self.nodeGroup
         currentNodeGroup.time.initSim()
+
+    def finish(self):
+        currentNodeGroup = self.nodeGroup
+        currentNodeGroup.time.finish()
+
+    def step(self):
+        currentNodeGroup = self.nodeGroup
+        currentNodeGroup.time.step()
 
     def splice(self, path1, path2):   # #minimal path connecting endpts
         l1 = len(path1.nodes)
@@ -596,6 +617,8 @@ class population:
             startSegmentPaths.append(self.splice(start, end))
 
 
+import pdb; pdb.set_trace()
+
 x = dispatch["room"]("ROOM")
 print(x)
 xx = population()
@@ -607,3 +630,5 @@ xx.connectTypes("person", "bar")
 print(xx.calcState())
 xx.showInfState()
 xx.initSim()
+xx.step()
+xx.finish()
