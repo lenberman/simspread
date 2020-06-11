@@ -1,6 +1,7 @@
 #  #!/usr/bin/python3
 # ##import pdb; pdb.set_trace()
 import random
+import statistics
 
 class disease:
     def __init__(self, mps=6, asym=1000, sym=1500,
@@ -172,7 +173,7 @@ class node:
         
     def process(self):
         self.field = self.calculate()
-        if (True):
+        if (False):
             print("\nProcessing(" + str(self.name) + ") in:\t" +
                   str(self.inReady[0]) + ", field=" + str(self.field))
         #import pdb; pdb.set_trace()
@@ -512,16 +513,18 @@ dispatch = {"bar": bar, "bus": bus, "busstop": busstop, "car": car,
 
 class population:
     class accum:
-        acc = {"nInf": 0, "pField": 0.0, "pFieldSq": 0.0,
-               "nPerson": 0, "vField": 0.0, "vFieldSq": 0.0,  "ndNum": 0}
+        acc = {"nInf": 0, "pField": [], "nPerson": 0, "vField": [],  "ndNum": 0}
         def __init__(self):
             self.acc = population.accum.acc.copy()
+
+        def __str__(self):
+            return str(self.acc)
 
     def __init__(self, name=None):
         self.pctInf = 0
         self.acc = population.accum()
         if name is None:
-            name = "P" + str(len(currentNodeGroup.names.keys()))
+            name = "P_" + str(len(currentNodeGroup.names.keys()))
         self.composite = composite(name)
         self.paths = {}   # #arranged by start type
         for nm in dispatch.keys():
@@ -538,20 +541,26 @@ class population:
                     print(str(j.nodes[0].field)+"\t"+j.__str__())
 
     def showInfState(self, all=False, dx=.1):
-        pass
+        self.calcState()
+        pData = self.acc.acc["pField"]
+        vData = self.acc.acc["vField"]
+        print("Persons(#,#inf,field): (" + str(self.acc.acc["nPerson"]) + ", "
+              + str(self.acc.acc["nInf"]) + ", " +
+              str(statistics.mean(pData)) + "+/-" + str(statistics.stdev(pData)) + ")")
+        print("Nodes(#, field): (" + str(self.acc.acc["ndNum"]) + ", " +
+              str(statistics.mean(vData)) + "+/-" + str(statistics.stdev(vData)) + ")")
 
     def calcState(self):
         self.acc = population.accum()
         for nd in currentNodeGroup.names.values():
             field = nd.field
             self.acc.acc["ndNum"] += 1
-            self.acc.acc["vField"] += field
-            self.acc.acc["vFieldSq"] += field*field
+            self.acc.acc["vField"].append(field)
+            #self.acc.acc["vFieldSq"] += field*field
             if isinstance(nd, person):
                 if nd.infected:
                     self.acc.acc["nInf"] += 1
-                self.acc.acc["pField"] += field
-                self.acc.acc["pFieldSq"] += field*field
+                self.acc.acc["pField"].append(field)
                 self.acc.acc["nPerson"] += 1
         return self.acc
 
@@ -620,15 +629,18 @@ class population:
 import pdb; pdb.set_trace()
 
 x = dispatch["room"]("ROOM")
-print(x)
+
 xx = population()
 xx.populate(typ=person, num=5)
-# #xx.showPaths()
+# #
 xx.populate(typ=dispatch["bar"], num=3)
+xx.showPaths()
 xx.setInfPct()  # #default 10%
 xx.connectTypes("person", "bar")
-print(xx.calcState())
+xx.showPaths()
+print("calcState" + str(xx.calcState()))
 xx.showInfState()
 xx.initSim()
 xx.step()
 xx.finish()
+xx.showInfState()
