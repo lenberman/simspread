@@ -2,6 +2,7 @@
 # ##import pdb; pdb.set_trace()
 import random
 import statistics
+import math
 
 class disease:
     def __init__(self, mps=6, asym=1000, sym=1500,
@@ -11,6 +12,8 @@ class disease:
         self.sym = sym
         self.psym = psym
         self.antibody = abt
+        #how rapidly does vdf disperse.
+        self.vdfDecayPerStepExp = 0.0
 
     def infectivity(prsn):
         pass
@@ -69,7 +72,7 @@ class future:
                     pth.curLoc = 0
 
     def step(self):  # #step(s) must be preceded by initSim
-        self.finish()  # #paths have ONE or TWO person nodes.
+        self.finish()
         return "Done at time = " + str(self.currentStep)
 
     def popNextNode(self):  # #null when events array is empty
@@ -103,7 +106,7 @@ class future:
         assert(isinstance(nd, node) or isinstance(nd, node.path))
         return nd.process()
 
-    def finish(self, mStep=10000):  # #simulate all currently scheduled nodes
+    def finish(self, mStep=10000):  # #simulate currently scheduled nodes
         while self.currentStep <= max(self.maxStep, mStep):
             nd = self.processNextNode()
             if nd is None:
@@ -121,6 +124,7 @@ class nodeGroup:
         self.stepsPerDay = 1000
         self.time = future()
         self.seed = random.getstate()
+        self.disease = disease()
         
 currentNodeGroup = nodeGroup()
 
@@ -172,6 +176,7 @@ class node:
 
         
     def process(self):
+        # calculates new field value from InReady
         self.field = self.calculate()
         if (False):
             print("\nProcessing(" + str(self.name) + ") in:\t" +
@@ -240,6 +245,7 @@ class node:
         self._fieldStep = currentNodeGroup.time.currentStep
 
     class path:
+        # #path:  ONE  person node (may occur at start and end)
         def __init__(self, array=[]):
             self.nodes = []
             self.to(array)
@@ -287,7 +293,8 @@ class node:
             # #determine src and dest for this step 
             srcNode = self.nodes[self.curLoc]
             srcField = srcNode.field
-            if self.curLoc+self.forward < 0 or \
+            srcFieldAvailableTime = srcNode._fieldStep + srcNode.delay
+            if self.curLoc + self.forward < 0 or \
                self.curLoc + self.forward >= len(self. nodes):
                 # #reverse path at current node
                 # #curLoc is end of this path
@@ -298,10 +305,10 @@ class node:
                 self._exposure\
                     += srcField * srcNode.delay
             else:
-                self._exposure\
+                 self._exposure\
                     += (1 - srcNode.pFactor) * srcField * srcNode.delay
             targetNode.ready(srcField, self)
-            t1 = max(currentNodeGroup.time.currentStep, srcNode._fieldStep) + srcNode.delay
+            t1 = max(currentNodeGroup.time.currentStep, srcFieldAvailableTime)
             currentNodeGroup.time.scheduleAt(targetNode, t1)
             return self
 
@@ -538,6 +545,8 @@ class population:
             if len(paths_SrcType) > 0:  # #if something is there
                 print("Paths to type:" + i)
                 for j in paths_SrcType:
+                    if j.nodes[0] is None:
+                        import pdb; pdb.set_trace()
                     print(str(j.nodes[0].field)+"\t"+j.__str__())
 
     def showInfState(self, all=False, dx=.1):
@@ -631,9 +640,9 @@ import pdb; pdb.set_trace()
 x = dispatch["room"]("ROOM")
 
 xx = population()
-xx.populate(typ=person, num=5)
+xx.populate(typ=person, num=15)
 # #
-xx.populate(typ=dispatch["bar"], num=3)
+xx.populate(typ=dispatch["bar"], num=15)
 xx.showPaths()
 xx.setInfPct()  # #default 10%
 xx.connectTypes("person", "bar")
@@ -641,6 +650,6 @@ xx.showPaths()
 print("calcState" + str(xx.calcState()))
 xx.showInfState()
 xx.initSim()
-xx.step()
+##xx.step()
 xx.finish()
 xx.showInfState()
