@@ -153,7 +153,7 @@ class node:
         self._sqM = sqM
         self.crowdFactor = 1
         self.delay = 1  # #steps ascribed to passage thru
-        self.inReady = [[], []]  # #paths & field connections
+        self.inReady = [[], [], []]  # #paths & field connections
         self.lastStep = currentNodeGroup.time.currentStep
         self.maxInReady = 2  # #stores available values 
         self.processInterval = 5
@@ -166,7 +166,7 @@ class node:
         val = nm + "(" + self._role
         val += ", field=" + str(self._field)
         val += ", lastStep=" + str(self.lastStep) + ")"
-        val += str(self.inReady[0])
+        val += str(self.inReady[0]) + ":" + str(self.inReady[1])
         return val
 
     def reschedule(self):
@@ -183,8 +183,10 @@ class node:
                   str(self.inReady[0]) + ", field=" + str(self.field))
         #import pdb; pdb.set_trace()
         valA = self.inReady[0]
-        pathA = self.inReady[1]
+        stepA = self.inReady[1]
+        pathA = self.inReady[2]
         v = []
+        s = []
         p = []
         nProcessed = 0
         for i in range(len(pathA)):
@@ -202,8 +204,9 @@ class node:
             else:
                 # #value this path next periodic activation
                 v.extend([valA[i]])
+                s.extend([stepA[i]])
                 p.extend([pathA[i]])
-        self.inReady = [v, p]
+        self.inReady = [v, s, p]
         if len(v) > 0:
             #  #import pdb; pdb.set_trace()
             self.reschedule()
@@ -211,23 +214,29 @@ class node:
 
     def calculate(self):  # #area weighted field of inputs
         valA = self.inReady[0]
-        pathA = self.inReady[1]
+        stepA = self.inReady[1]
+        pathA = self.inReady[2]
         rv = 0
         total = 0.0
         assert(len(valA) == len(pathA))
         for i in range(0, len(valA)):
             path = pathA[i]
+            step = stepA[i]
+            dt = currentNodeGroup.time.currentStep - step
+            assert(dt >= 0)
+            factor = math.exp(currentNodeGroup.disease.vdfDecayPerStepExp*dt)
             val = valA[i]
             cNode = path.nodes[path.curLoc]
             thisVDFM2 = cNode._sqM
-            total += (val * thisVDFM2)
+            total += (val * thisVDFM2 * factor)
         rv = (total / self._sqM)
         return rv
 
-    def ready(self, field, path):
+    def ready(self, field, stepNum , path):
         conn = self.inReady
         conn[0].append(field)
-        conn[1].append(path)
+        conn[1].append(stepNum)
+        conn[2].append(path)
 
     @property
     def field(self):
@@ -307,7 +316,7 @@ class node:
             else:
                  self._exposure\
                     += (1 - srcNode.pFactor) * srcField * srcNode.delay
-            targetNode.ready(srcField, self)
+            targetNode.ready(srcField, srcFieldAvailableTime, self)
             t1 = max(currentNodeGroup.time.currentStep, srcFieldAvailableTime)
             currentNodeGroup.time.scheduleAt(targetNode, t1)
             return self
@@ -420,6 +429,7 @@ class person(node):
             self.pNum += 1
         else:
             self._exposure += tPath._exposure
+            self.inReady = [[], [], []]
             return True
         node.process(self)
         tPath.forward *= -1
@@ -428,7 +438,7 @@ class person(node):
         if (self.pNum < 2):
             tPath.process()
         # #next required to 
-        self.inReady = [[], []]
+        self.inReady = [[], [], []]
         return self
 
     @property
