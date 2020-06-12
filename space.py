@@ -5,15 +5,26 @@ import statistics
 import math
 
 class disease:
-    def __init__(self, mps=6, asym=1000, sym=1500,
-                 psym=1500, abt=6000):
-        self.minutesPerStep = mps
+    def __init__(self,
+                 minutesPerStep=6,
+                 asym=7200,  # #7200 minutes ~ 5 days asymptomatic
+                 symp=10800,  # # 7.5 days of symtoms
+                 psym=0,  # #contagious for this long after symptoms clear
+                 abt=14400,  # # post-symtom appeearance of antibodies(min)
+                 vdfHalfLifeMinutes=7200  #
+):
+        self.minutesPerStep = minutesPerStep
+        # time(minutes) from exposure until onset of symptoms
         self.asym = asym
-        self.sym = sym
+        # #duration of symptoms
+        self.symp = symp
+        # #contagious after symptoms
         self.psym = psym
-        self.antibody = abt
-        #how rapidly does vdf disperse.
-        self.vdfDecayPerStepExp = 0.0
+        # #time from symptom onset to antibody
+        self.serioconversion = abt
+        # #how rapidly does vdf disperse.
+        self.vdfDecayPerStepExp = \
+            math.log(2.0)/(vdfHalfLifeMinutes/minutesPerStep)
 
     def infectivity(prsn):
         pass
@@ -71,10 +82,6 @@ class future:
                 if pth.curLoc is None:
                     pth.curLoc = 0
 
-    def step(self):  # #step(s) must be preceded by initSim
-        self.finish()
-        return "Done at time = " + str(self.currentStep)
-
     def popNextNode(self):  # #null when events array is empty
         nn = self.events.get(self.currentStep)
         if nn is None:
@@ -105,6 +112,10 @@ class future:
             return None
         assert(isinstance(nd, node) or isinstance(nd, node.path))
         return nd.process()
+
+    def step(self):  # #step(s) must be preceded by initSim
+        self.finish()
+        return "Done at time = " + str(self.currentStep)
 
     def finish(self, mStep=10000):  # #simulate currently scheduled nodes
         while self.currentStep <= max(self.maxStep, mStep):
@@ -224,7 +235,7 @@ class node:
             step = stepA[i]
             dt = currentNodeGroup.time.currentStep - step
             assert(dt >= 0)
-            factor = math.exp(currentNodeGroup.disease.vdfDecayPerStepExp*dt)
+            factor = math.exp(currentNodeGroup.disease.vdfDecayPerStepExp * dt)
             val = valA[i]
             cNode = path.nodes[path.curLoc]
             thisVDFM2 = cNode._sqM
@@ -232,7 +243,7 @@ class node:
         rv = (total / self._sqM)
         return rv
 
-    def ready(self, field, stepNum , path):
+    def ready(self, field, stepNum, path):
         conn = self.inReady
         conn[0].append(field)
         conn[1].append(stepNum)
@@ -599,9 +610,12 @@ class population:
         currentNodeGroup = self.nodeGroup
         currentNodeGroup.time.finish()
 
-    def step(self):
+    def step(self, numIter=5, follow=True):
         currentNodeGroup = self.nodeGroup
-        currentNodeGroup.time.step()
+        for i in range(0, numIter):
+            currentNodeGroup.time.step()
+            if follow:
+                self.showInfState()
 
     def splice(self, path1, path2):   # #minimal path connecting endpts
         l1 = len(path1.nodes)
@@ -653,7 +667,6 @@ xx = population()
 xx.populate(typ=person, num=15)
 # #
 xx.populate(typ=dispatch["bar"], num=15)
-xx.showPaths()
 xx.setInfPct()  # #default 10%
 xx.connectTypes("person", "bar")
 xx.showPaths()
@@ -661,5 +674,5 @@ print("calcState" + str(xx.calcState()))
 xx.showInfState()
 xx.initSim()
 ##xx.step()
-xx.finish()
+xx.step(5)
 xx.showInfState()
