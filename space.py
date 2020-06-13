@@ -298,6 +298,19 @@ class node:
             import pdb; pdb.set_trace()
             self.paths.append(extension.nodes[1:])
 
+        def splice(self, path2):   # #minimal path connecting endpts
+            l1 = len(self.nodes)
+            l2 = len(path2.nodes)
+            assert(path2.nodes[l2 - 1] == self.nodes[l1 - 1])
+            for j in range(1, min(l1, l2)):
+                if path2.nodes[l2 - j] != self.nodes[l1 - j]:
+                    start = self.nodes[:l1 - j + 1].copy()
+                    end = path2.nodes[:l2 - j + 1].copy()
+                    end.reverse()
+                    start.extend(end)
+                    return node.path(start)
+            return node.path([self.nodes[0], path2.nodes[0]])
+
 
 
         def __str__(self):
@@ -692,19 +705,6 @@ class population:
         if not follow:
             self.showInfState()
 
-    def splice(self, path1, path2):   # #minimal path connecting endpts
-        l1 = len(path1.nodes)
-        l2 = len(path2.nodes)
-        assert(path2.nodes[l2 - 1] == path1.nodes[l1 - 1])
-        for j in range(1, min(l1, l2)):
-            if path2.nodes[l2 - j] != path1.nodes[l1 - j]:
-                start = path1.nodes[:l1 - j + 1].copy()
-                end = path2.nodes[:l2 - j + 1].copy()
-                end.reverse()
-                start.extend(end)
-                return node.path(start)
-        return node.path([path1.nodes[0], path2.nodes[0]])
-
     def populate(self, typ=dispatch["person"], num=10, maxLevel=0, shape=[1,8,2,12,4]):
         # #maxLevel to control distributions of nonCompos
         for ii in dispatch.keys():
@@ -735,9 +735,9 @@ class population:
         for i in range(0, max(l1, l2)):
             start = startSegmentPaths[i % l1]
             end = endSegmentPaths[i % l2]
-            splice = self.splice(start, end)
-            if (splice is not None):
-                startSegmentPaths.append(splice)
+            splice = start.splice(end)
+            assert (splice is not None)
+            startSegmentPaths.append(splice)
 
 
 import pdb; pdb.set_trace()
