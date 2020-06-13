@@ -1,8 +1,9 @@
-#  #!/usr/bin/python3
+#!/usr/bin/python3
 # ##import pdb; pdb.set_trace()
 import random
 import statistics
 import math
+import sys
 
 class disease:
     def __init__(self,
@@ -702,7 +703,7 @@ class population:
                 end.reverse()
                 start.extend(end)
                 return node.path(start)
-        return None
+        return node.path([path1.nodes[0], path2.nodes[0]])
 
     def populate(self, typ=dispatch["person"], num=10, maxLevel=0, shape=[1,8,2,12,4]):
         # #maxLevel to control distributions of nonCompos
