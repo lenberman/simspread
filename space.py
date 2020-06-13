@@ -76,7 +76,7 @@ class future:
         assert(self == currentNodeGroup.time)
         for ii in currentNodeGroup.names.values():
             ii.reset()  # # reset
-            if isinstance(ii, person):
+            if isinstance(ii, person) and ii.nextPath is not None:
                 self.scheduleAt(ii, self.currentStep)
                 pth = ii.paths[ii.nextPath]
                 if pth.curLoc is None:
@@ -121,8 +121,9 @@ class future:
         while self.currentStep <= max(self.maxStep, mStep):
             nd = self.processNextNode()
             if nd is None:
-                print("\n\nCompleted DEPTH: " + str(self.currentStep))
-                print("\t:maxStep:" + str(self.maxStep)+"\n")
+                # #print("\n\nCompleted DEPTH: " + str(self.currentStep))
+                # #print("\t:maxStep:" + str(self.maxStep)+"\n")
+                print(".", sep=' ', end='', file=sys.stdout, flush=False)
                 return True
         return False
 
@@ -234,6 +235,8 @@ class node:
             path = pathA[i]
             step = stepA[i]
             dt = currentNodeGroup.time.currentStep - step
+            if dt <0:
+                continue
             assert(dt >= 0)
             factor = math.exp(currentNodeGroup.disease.vdfDecayPerStepExp * dt)
             val = valA[i]
@@ -265,7 +268,7 @@ class node:
         self._fieldStep = currentNodeGroup.time.currentStep
 
     class path:
-        # #path:  ONE  person node (may occur at start and end)
+        # #path:  ONE  person node (may occur at start or end)
         def __init__(self, array=[]):
             self.nodes = []
             self.to(array)
@@ -276,7 +279,11 @@ class node:
             self._exposure = 0
 
         def to(self, a):
-           self.nodes.extend(a)
+            for i in a:
+                if isinstance(i,int):
+                    import pdb; pdb.set_trace()
+                    print("Unexpected int")
+            self.nodes.extend(a)
 
         def frm(self, a):
             self.nodes = [a].extend(self.nodes)
@@ -287,11 +294,7 @@ class node:
             self.nodes.extend(arr[1:])
 
         def extendPath(self, extension):
-            if extension is None or len(extension.nodes) == 0 or len(self.nodes) == 0:
-                print(self)
-                import pdb; pdb.set_trace()
-            if not self.nodes[len(self.nodes) - 1] == extension.nodes[0]:
-                import pdb; pdb.set_trace()
+            import pdb; pdb.set_trace()
             self.paths.append(extension.nodes[1:])
 
 
@@ -448,7 +451,6 @@ class person(node):
         # #forward huskies
         if (self.pNum < 2):
             tPath.process()
-        # #next required to 
         self.inReady = [[], [], []]
         return self
 
@@ -460,14 +462,25 @@ class person(node):
     def infected(self, val):
         self._infected = val
         self._infectedStep = currentNodeGroup.time.currentStep
-        
+
     def addPath(self, path):
         if (self.nextPath is None):
             self.nextPath = 0
         assert(path.nodes[0] == self)
         self.paths.append(path)
 
-        
+    def removePath(self, pth):
+        q = None
+        if self.nextPath is not None:
+            q = self.paths[self.nextPath]
+        self.paths.remove(pth)
+        if self.paths.count(q) > 0:
+            self.nextPath = self.paths.index(q)
+        elif len(self.paths) > 0:
+            self.nextPath = 0
+        else:
+            self.nextPath = None
+
     def calculate(self):
         val = self._field
         if self.infected:
@@ -504,9 +517,31 @@ class composite(node):
             assert(isinstance(i, composite))
             self.children[j] = i
 
-    # #returns array of nodes
+    # #returns path through composite to bNode
+    def pathTo(self, pathA, bNode=None, tp=person):
+        # #path to person through children
+        self.level = max(self.level, len(pathA))
+        assert(len(pathA) != 0)
+        cComposite = self
+        q = [cComposite]
+        for j in range(0, len(pathA) - 1):
+            nName = cComposite.name + "." + str(pathA[j])
+            nd = currentNodeGroup.names.get(nName)
+            if (nd is None):
+                nd = composite(nName, self.level-j-1)
+                self.children[pathA[j]] = nd
+            q.append(nd)
+        if bNode is None:
+            bNode = tp(self.name + "." +
+                       str(len(currentNodeGroup.names.values())))
+        q.append(bNode)
+        q.reverse()
+        rv = node.path(q)
+        assert(rv is not None)
+        return rv
 
-    def pathTo(self, pathA=[], bNode=None, tp=person):
+    # #returns path through composite to bNode
+    def pathTo1(self, pathA, bNode=None, tp=person):
         # #path to person through children
         self.level = max(self.level, len(pathA))
         if len(pathA) > 0:
@@ -515,7 +550,7 @@ class composite(node):
             if (nd is None):
                 nd = composite(cName, self.level-1)
                 self.children[pathA[0]] = nd
-            endPath = nd.pathTo(pathA[1:], bNode)
+            endPath = nd.pathTo1(pathA[1:], bNode)
             endPath.to([self])
             return endPath
         else:
@@ -541,7 +576,8 @@ dispatch = {"bar": bar, "bus": bus, "busstop": busstop, "car": car,
 
 class population:
     class accum:
-        acc = {"nInf": 0, "pField": [], "nPerson": 0, "vField": [],  "ndNum": 0}
+        acc = {"nInf": 0, "pField": [], "nPerson": 0, "vField": [], "ndNum": 0}
+
         def __init__(self):
             self.acc = population.accum.acc.copy()
 
@@ -559,26 +595,63 @@ class population:
             self.paths[nm] = []
         self.nodeGroup = currentNodeGroup
 
+    def prune(self):
+        for i in dispatch.keys():  # #for each type
+            paths_SrcType = self.paths[i]
+            if len(paths_SrcType) > 0:  # #if something is there
+                newPathList = []
+                for pth in paths_SrcType:
+                    if pth is None or pth.nodes[0] is None:
+                        import pdb; pdb.set_trace()
+                        print("None")
+                    elif pth.nodes[len(pth.nodes) - 1] == self.composite:
+                        print("\nRemoving " + str(pth))
+                        if i == "person":
+                            pth.nodes[0].removePath(pth)
+                    else:
+                        print("\nretaining: " + str(pth))
+                        newPathList.append(pth)
+                self.paths[i] = newPathList
+
     def showPaths(self):
         print("Population(" + self.composite.name + ")")
         for i in dispatch.keys():  # #for each type
             paths_SrcType = self.paths[i]
             if len(paths_SrcType) > 0:  # #if something is there
-                print("Paths to type:" + i)
+                print("Paths from type:" + i)
                 for j in paths_SrcType:
-                    if j.nodes[0] is None:
+                    if j is None or j.nodes[0] is None:
                         import pdb; pdb.set_trace()
-                    print(str(j.nodes[0].field)+"\t"+j.__str__())
+                        print(">>>>>unexpected None:" + str(j))
+                    else:
+                        print(str(j.nodes[0].field)+"\t"+j.__str__())
 
     def showInfState(self, all=False, dx=.1):
         self.calcState()
         pData = self.acc.acc["pField"]
         vData = self.acc.acc["vField"]
-        print("Persons(#,#inf,field): (" + str(self.acc.acc["nPerson"]) + ", "
-              + str(self.acc.acc["nInf"]) + ", " +
-              str(statistics.mean(pData)) + "+/-" + str(statistics.stdev(pData)) + ")")
-        print("Nodes(#, field): (" + str(self.acc.acc["ndNum"]) + ", " +
-              str(statistics.mean(vData)) + "+/-" + str(statistics.stdev(vData)) + ")")
+        lpData = []
+        lvData = []
+        for i in range(0, len(pData)):
+            if pData[i] == 0:
+                lpData.append(2**-35)
+            else:
+                lpData.append(math.log(pData[i]))
+        for i in range(0, len(vData)):
+            if vData[i] == 0:
+                lvData.append(2**-35)
+            else:
+                lvData.append(math.log(vData[i]))
+                
+        print("\nPersons(#,#inf,ln(field)): (" +
+              str(self.acc.acc["nPerson"]) + ", " +
+              str(self.acc.acc["nInf"]) + ", " +
+              str(statistics.mean(pData)) + "+/-" +
+              str(statistics.stdev(lpData)) + ")")
+        print("\nNodes(#, ln(field)): (" +
+              str(self.acc.acc["ndNum"]) + ", " +
+              str(statistics.mean(vData)) + "+/-" +
+              str(statistics.stdev(lvData)) + ")")
 
     def calcState(self):
         self.acc = population.accum()
@@ -586,7 +659,6 @@ class population:
             field = nd.field
             self.acc.acc["ndNum"] += 1
             self.acc.acc["vField"].append(field)
-            #self.acc.acc["vFieldSq"] += field*field
             if isinstance(nd, person):
                 if nd.infected:
                     self.acc.acc["nInf"] += 1
@@ -616,6 +688,8 @@ class population:
             currentNodeGroup.time.step()
             if follow:
                 self.showInfState()
+        if not follow:
+            self.showInfState()
 
     def splice(self, path1, path2):   # #minimal path connecting endpts
         l1 = len(path1.nodes)
@@ -628,6 +702,7 @@ class population:
                 end.reverse()
                 start.extend(end)
                 return node.path(start)
+        return None
 
     def populate(self, typ=dispatch["person"], num=10, maxLevel=0, shape=[1,8,2,12,4]):
         # #maxLevel to control distributions of nonCompos
@@ -635,7 +710,6 @@ class population:
             if dispatch[ii] == typ:
                 typeName = ii
                 break
-            
         for i in range(0, num):
             pathA = []
             for j in range(0, len(shape) - 1):
@@ -643,7 +717,11 @@ class population:
             nodeName = typeName + str(len(currentNodeGroup.names.values()))
             ithPath = self.composite.pathTo(pathA, typ(nodeName))
             ithNode = ithPath.nodes[ithPath.curLoc]
-            self.paths[typeName].append(ithPath)
+            if ithPath is None:
+                import pdb; pdb.set_trace()
+                print 
+            else:
+                self.paths[typeName].append(ithPath)
             if (typeName == "person"):
                 ithNode . addPath(ithPath)
 
@@ -656,23 +734,29 @@ class population:
         for i in range(0, max(l1, l2)):
             start = startSegmentPaths[i % l1]
             end = endSegmentPaths[i % l2]
-            startSegmentPaths.append(self.splice(start, end))
+            splice = self.splice(start, end)
+            if (splice is not None):
+                startSegmentPaths.append(splice)
 
 
 import pdb; pdb.set_trace()
 
 x = dispatch["room"]("ROOM")
 
+
+
+
+
 xx = population()
 xx.populate(typ=person, num=15)
 # #
-xx.populate(typ=dispatch["bar"], num=15)
+xx.populate(typ=dispatch["bar"], num=5)
 xx.setInfPct()  # #default 10%
 xx.connectTypes("person", "bar")
 xx.showPaths()
-print("calcState" + str(xx.calcState()))
+xx.prune()
+xx.showPaths()
 xx.showInfState()
 xx.initSim()
-##xx.step()
-xx.step(5)
-xx.showInfState()
+xx.step(50, follow=False)
+
