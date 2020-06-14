@@ -192,7 +192,7 @@ class node:
     def process(self):
         # calculates new field value from InReady
         self.field = self.calculate()
-        if (True):
+        if (isinstance(self, person)):
             print("\n" + str(self.name) + " @\t" + str(self._fieldStep) +
                   ":\t" + str(self.inReady[0]) + ", field=" + str(self.field))
         #import pdb; pdb.set_trace()
@@ -456,6 +456,9 @@ class person(node):
         tPath = self.paths[self.nextPath]
         if self.observable:
             self._exposure += tPath._exposure
+            print("\n" + str(self.name) + " @\t" + str(self._fieldStep) +
+                  ":\t" + str(self.inReady[0]) + ", field=\t" + str(self.field) +
+                  ", exposure=\t" + str(self._exposure))
             self.inReady = [[], [], []]
             currentNodeGroup.personDone += 1
             return True
@@ -664,11 +667,11 @@ class population:
         print("\nPersons(#,#inf,ln(field)): (" +
               str(self.acc.acc["nPerson"]) + ", " +
               str(self.acc.acc["nInf"]) + ", " +
-              str(statistics.mean(pData)) + "+/-" +
+              str(statistics.mean(pData)) + " +/- " +
               str(statistics.stdev(lpData)) + ")")
         print("\nNodes(#, ln(field)): (" +
               str(self.acc.acc["ndNum"]) + ", " +
-              str(statistics.mean(vData)) + "+/-" +
+              str(statistics.mean(vData)) + " +/- " +
               str(statistics.stdev(lvData)) + ")")
 
     def calcState(self):
