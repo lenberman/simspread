@@ -75,13 +75,16 @@ class future:
         self.currentStep += 1
         self.maxStep = max(self.maxStep, self.currentStep+1)
         assert(self == currentNodeGroup.time)
+        currentNodeGroup.personDone = 0
         for ii in currentNodeGroup.names.values():
             ii.reset()  # # reset
             if isinstance(ii, person) and ii.nextPath is not None:
                 self.scheduleAt(ii, self.currentStep)
+                currentNodeGroup.personDone -= 1
                 pth = ii.paths[ii.nextPath]
                 if pth.curLoc is None:
                     pth.curLoc = 0
+        assert(currentNodeGroup.personDone == - len(currentNodeGroup.persons))
 
     def popNextNode(self):  # #null when events array is empty
         nn = self.events.get(self.currentStep)
@@ -115,18 +118,15 @@ class future:
         return nd.process()
 
     def step(self):  # #step(s) must be preceded by initSim
-        self.finish()
-        return "Done at time = " + str(self.currentStep)
-
-    def finish(self, mStep=10000):  # #simulate currently scheduled nodes
-        while self.currentStep <= max(self.maxStep, mStep):
+        while currentNodeGroup.personDone < 0:
             nd = self.processNextNode()
             if nd is None:
                 # #print("\n\nCompleted DEPTH: " + str(self.currentStep))
                 # #print("\t:maxStep:" + str(self.maxStep)+"\n")
                 print(".", sep=' ', end='', file=sys.stdout, flush=False)
                 return True
-        return False
+        return "Done at current  step = " + str(self.currentStep)
+
 
 currentNodeGroup = None
 
@@ -138,6 +138,7 @@ class nodeGroup:
         self.time = future()
         self.seed = random.getstate()
         self.disease = disease()
+        self.personDone = 0
         
 currentNodeGroup = nodeGroup()
 
@@ -191,9 +192,9 @@ class node:
     def process(self):
         # calculates new field value from InReady
         self.field = self.calculate()
-        if (False):
-            print("\nProcessing(" + str(self.name) + ") in:\t" +
-                  str(self.inReady[0]) + ", field=" + str(self.field))
+        if (True):
+            print("\n" + str(self.name) + " @\t" + str(self._fieldStep) +
+                  ":\t" + str(self.inReady[0]) + ", field=" + str(self.field))
         #import pdb; pdb.set_trace()
         valA = self.inReady[0]
         stepA = self.inReady[1]
@@ -236,7 +237,7 @@ class node:
             path = pathA[i]
             step = stepA[i]
             dt = currentNodeGroup.time.currentStep - step
-            if dt <0:
+            if dt < 0:
                 continue
             assert(dt >= 0)
             factor = math.exp(currentNodeGroup.disease.vdfDecayPerStepExp * dt)
@@ -434,15 +435,14 @@ class person(node):
         self.nextPath = None
         self._exposure = 0  # #time integral of field
         self.pFactor = 0.0  # #protection of PPE
-        self.pNum = 0
+        self.observable = True
 
     def reset(self):  # #for next step
         node.reset(self)
-        if not len(self.paths) > 0:
-            print("person with no paths reset")
-            print(self)
+        if len(self.paths) == 0:
+            print("person without paths:" + str((self)))
             return
-        self.pNum = 0
+        self.observable = True
         if self.nextPath is None:
             self.nextPath = 0
 
@@ -450,20 +450,20 @@ class person(node):
         self.pFactor = amt
 
     def process(self):  # #ALONG A PATH
+        self.observable = not self.observable
         if (self.infected):
             self._field = 1   # #assignment overloaded in node
         tPath = self.paths[self.nextPath]
-        if self.pNum < 2:
-            self.pNum += 1
-        else:
+        if self.observable:
             self._exposure += tPath._exposure
             self.inReady = [[], [], []]
+            currentNodeGroup.personDone += 1
             return True
         node.process(self)
         tPath.forward *= -1
         # #assert(tPath.nodes[tPath.curLoc] == self)
         # #forward huskies
-        if (self.pNum < 2):
+        if (not self.observable):
             tPath.process()
         self.inReady = [[], [], []]
         return self
@@ -480,8 +480,10 @@ class person(node):
     def addPath(self, path):
         if (self.nextPath is None):
             self.nextPath = 0
-        assert(path.nodes[0] == self)
-        self.paths.append(path)
+        if (path.nodes[0] != self):
+            assert(False)  # #reverse path and add.
+        else:
+            self.paths.append(path)
 
     def removePath(self, pth):
         q = None
@@ -493,11 +495,12 @@ class person(node):
         elif len(self.paths) > 0:
             self.nextPath = 0
         else:
+            import pdb; pdb.set_trace()
             self.nextPath = None
 
     def calculate(self):
         val = self._field
-        if self.infected:
+        if self._infected:
             val = 1.0
         if len(self.inReady[0]) == 1:   # #value path end
             return (1-self.pFactor)*(val+self.inReady[0][0])
@@ -538,8 +541,9 @@ class composite(node):
         assert(len(pathA) != 0)
         cComposite = self
         q = [cComposite]
+        nName = cComposite.name
         for j in range(0, len(pathA) - 1):
-            nName = cComposite.name + "." + str(pathA[j])
+            nName = nName + "." + str(pathA[j])
             nd = currentNodeGroup.names.get(nName)
             if (nd is None):
                 nd = composite(nName, self.level-j-1)
@@ -616,7 +620,7 @@ class population:
                 newPathList = []
                 for pth in paths_SrcType:
                     if pth is None or pth.nodes[0] is None:
-                        import pdb; pdb.set_trace()
+                        import pdb; pdb.set_trace()    
                         print("None")
                     elif pth.nodes[len(pth.nodes) - 1] == self.composite:
                         print("\nRemoving " + str(pth))
@@ -671,13 +675,14 @@ class population:
         self.acc = population.accum()
         for nd in currentNodeGroup.names.values():
             field = nd.field
-            self.acc.acc["ndNum"] += 1
-            self.acc.acc["vField"].append(field)
             if isinstance(nd, person):
                 if nd.infected:
                     self.acc.acc["nInf"] += 1
                 self.acc.acc["pField"].append(field)
                 self.acc.acc["nPerson"] += 1
+            else:
+                self.acc.acc["ndNum"] += 1
+                self.acc.acc["vField"].append(field)
         return self.acc
 
     def setInfPct(self, val=.25):
@@ -738,20 +743,25 @@ class population:
             splice = start.splice(end)
             assert (splice is not None)
             startSegmentPaths.append(splice)
+            if (t1 == "person"):
+                splice.nodes[0].addPath(splice)
+            if (t2 == "person"):
+                lt2 = len(splice.nodes)
+                splice.nodes[lt2 - 1].addPath(splice)
 
 
 import pdb; pdb.set_trace()
 
-x = dispatch["room"]("ROOM")
+#x = dispatch["room"]("ROOM")
 
 
 
 
 
 xx = population()
-xx.populate(typ=person, num=15)
+xx.populate(typ=person, num=10)
 # #
-xx.populate(typ=dispatch["bar"], num=5)
+xx.populate(typ=dispatch["bar"], num=2)
 xx.setInfPct()  # #default 10%
 xx.connectTypes("person", "bar")
 xx.showPaths()
@@ -759,5 +769,5 @@ xx.prune()
 xx.showPaths()
 xx.showInfState()
 xx.initSim()
-xx.step(50, follow=False)
+xx.step(1, follow=False)
 
