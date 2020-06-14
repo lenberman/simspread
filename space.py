@@ -25,7 +25,7 @@ class disease:
         self.serioconversion = abt
         # #how rapidly does vdf disperse.
         self.vdfDecayPerStepExp = \
-            math.log(2.0)/(vdfHalfLifeMinutes/minutesPerStep)
+            -math.log(2.0)/(vdfHalfLifeMinutes/minutesPerStep)
 
     def infectivity(prsn):
         pass
@@ -71,7 +71,7 @@ class future:
         ct.append(nd)
         # #print(self)
 
-    def initSim(self):
+    def reset(self):
         self.currentStep += 1
         self.maxStep = max(self.maxStep, self.currentStep+1)
         assert(self == currentNodeGroup.time)
@@ -123,9 +123,9 @@ class future:
             if nd is None:
                 # #print("\n\nCompleted DEPTH: " + str(self.currentStep))
                 # #print("\t:maxStep:" + str(self.maxStep)+"\n")
-                print(".", sep=' ', end='', file=sys.stdout, flush=False)
+                print(".", sep=" ", end=" ", file=sys.stdout, flush=False)
                 return True
-        return "Done at current  step = " + str(self.currentStep)
+        return
 
 
 currentNodeGroup = None
@@ -192,9 +192,9 @@ class node:
     def process(self):
         # calculates new field value from InReady
         self.field = self.calculate()
-        if (isinstance(self, person)):
-            print("\n" + str(self.name) + " @\t" + str(self._fieldStep) +
-                  ":\t" + str(self.inReady[0]) + ", field=" + str(self.field))
+        if (False and isinstance(self, person)):
+            print("\n" + str(self.name) + " @ " + str(self._fieldStep) +
+                  ":\t" + str(self.inReady[0]) + ", field=\t" + str(self.field))
         #import pdb; pdb.set_trace()
         valA = self.inReady[0]
         stepA = self.inReady[1]
@@ -202,19 +202,18 @@ class node:
         v = []
         s = []
         p = []
-        nProcessed = 0
+        pAvail = 0
         for i in range(len(pathA)):
             tPath = pathA[i]
             #  #values furnished by inReady have path curLoc at source
             #  #assert(self == tPath.nodes[tPath.curLoc+tPath.forward])
             prevNode = tPath.nodes[tPath.curLoc]
             pAvail = prevNode._fieldStep + prevNode.delay
-            if pAvail <= self._fieldStep and nProcessed < self.maxInReady:
+            if pAvail <= self._fieldStep:
                 #  #and pAvail > self.lastStep and 
                 # #value from this path processed.  Respect maxInReady!
                 tPath.curLoc += tPath.forward
                 tPath.process()
-                nProcessed += 1
             else:
                 # #value this path next periodic activation
                 v.extend([valA[i]])
@@ -262,8 +261,10 @@ class node:
 
     @field.setter
     def field(self, val):
+        dt = self._fieldStep - self.lastStep
+        factor = math.exp(currentNodeGroup.disease.vdfDecayPerStepExp * dt)
         if not isinstance(self, person):
-            self._field = (self._field + val)/2.0
+            self._field = (self._field * factor + val)/2.0
         else:
             self._field = val
         self.lastStep = self._fieldStep
@@ -456,7 +457,7 @@ class person(node):
         tPath = self.paths[self.nextPath]
         if self.observable:
             self._exposure += tPath._exposure
-            print("\n" + str(self.name) + " @\t" + str(self._fieldStep) +
+            print("\n" + str(self.name) + " @ " + str(self._fieldStep) +
                   ":\t" + str(self.inReady[0]) + ", field=\t" + str(self.field) +
                   ", exposure=\t" + str(self._exposure))
             self.inReady = [[], [], []]
@@ -698,16 +699,14 @@ class population:
 
     def initSim(self):
         currentNodeGroup = self.nodeGroup
-        currentNodeGroup.time.initSim()
-
-    def finish(self):
-        currentNodeGroup = self.nodeGroup
-        currentNodeGroup.time.finish()
+        currentNodeGroup.time.reset()
 
     def step(self, numIter=5, follow=True):
-        currentNodeGroup = self.nodeGroup
+        self.initSim()
         for i in range(0, numIter):
             currentNodeGroup.time.step()
+            if i < numIter - 1:
+                currentNodeGroup.time.reset()
             if follow:
                 self.showInfState()
         if not follow:
@@ -764,13 +763,12 @@ import pdb; pdb.set_trace()
 xx = population()
 xx.populate(typ=person, num=10)
 # #
-xx.populate(typ=dispatch["bar"], num=2)
+xx.populate(typ=dispatch["bar"], num=3)
 xx.setInfPct()  # #default 10%
 xx.connectTypes("person", "bar")
 xx.showPaths()
 xx.prune()
 xx.showPaths()
 xx.showInfState()
-xx.initSim()
-xx.step(1, follow=False)
+xx.step(5, follow=False)
 
