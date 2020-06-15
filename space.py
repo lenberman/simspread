@@ -51,7 +51,7 @@ class future:
 
     def scheduleAt(self, nd, time):  # #reschedule if necessary
         assert(time >= self.currentStep)  # #don't schedule in past
-        # #print("\nSchedule " + str(nd) + " at " + str(time))
+
         if isinstance(nd, node):
             nodeCurrentSchedule = nd.scheduledAt
             if nodeCurrentSchedule > time:
@@ -141,8 +141,11 @@ class nodeGroup:
         self.seed = random.getstate()
         self.disease = disease()
         self.personDone = 0
+        self.pathFactor = .5  # #accumulation along paths
+
         
 cng = nodeGroup()
+
 
 def getCurrentNodeGroup():
     return cng
@@ -342,12 +345,12 @@ class node:
                 # import pdb; pdb.set_trace()
                 self.forward *= -1
             targetNode = self.nodes[self.curLoc+self.forward]
-            if not isinstance(srcNode, person):
-                self._exposure\
-                    += srcField * cng.disease.dFactor(srcNode.delay)
-            else:
-                 self._exposure\
-                    += (1 - srcNode.pFactor) * srcField * cng.disease.dFactor(srcNode.delay)
+            factor = cng.disease.dFactor(srcNode.delay)
+            srcNodeContribution = srcField * factor * cng.pathFactor
+            # srcNode pFactor for PPE
+            if isinstance(srcNode, person):
+                srcNodeContribution *= (1 - srcNode.pFactor)
+            self._exposure = srcNodeContribution + (1 - cng.pathFactor) * self._exposure
             targetNode.ready(srcField, srcFieldAvailableTime, self)
             t1 = max(cng.time.currentStep, srcFieldAvailableTime)
             cng.time.scheduleAt(targetNode, t1)
@@ -365,7 +368,7 @@ class room(node):
 class bar(node):
     def __init__(self, name):
         node.__init__(self, name )
-        self.sqM = 20
+        self._sqM = 20
         self.maxInReady = 20
         self.processInterval = 5
         self.delay = 100   # #time spent in the bar
@@ -459,9 +462,9 @@ class person(node):
             dt = cng.time.currentStep - self._fieldStep
             assert(dt > 0)
             factor = cng.disease.dFactor(dt)
-            self._exposure = tPath._exposure + self._exposure * factor
+            self._exposure = (tPath._exposure + self._exposure * factor)/(1 + factor)
             tPath._exposure = 0  # #reset exposure along path to zero.
-            if (false):
+            if (False):
                 print("\n" + str(self.name) + " @ " + str(self._fieldStep) +
                       ":\t" + str(self.inReady[0]) + ", field=\t" +
                       str(self.field) + ", exposure=\t" + str(self._exposure))
@@ -569,26 +572,6 @@ class composite(node):
         assert(rv is not None)
         return rv
 
-    # #returns path through composite to bNode
-    def pathTo1(self, pathA, bNode=None, tp=person):
-        # #path to person through children
-        self.level = max(self.level, len(pathA))
-        if len(pathA) > 0:
-            cName = self.name + "." + str(pathA[0])
-            nd = cng.names.get(cName)
-            if (nd is None):
-                nd = composite(cName, self.level-1)
-                self.children[pathA[0]] = nd
-            endPath = nd.pathTo1(pathA[1:], bNode)
-            endPath.to([self])
-            return endPath
-        else:
-            if bNode is None:
-                bNode = tp(self.name + "." +
-                           str(len(cng.names.values())))
-            return node.path([bNode, self])
-
-
 class building(composite):
     def __init__(self, address, shape=[1, 8, 1, 8]):
         self.roomsPerApt = shape[0]
@@ -605,10 +588,9 @@ dispatch = {"bar": bar, "bus": bus, "busstop": busstop, "car": car,
 
 class population:
     class accum:
-        acc = {"nInf": 0, "pField": [], "nPerson": 0, "vField": [], "ndNum": 0}
-
         def __init__(self):
-            self.acc = population.accum.acc.copy()
+            self.acc = {"nInf": 0, "exposure": [], "nPerson": 0,
+                        "field": [], "ndNum": 0}
 
         def __str__(self):
             return str(self.acc)
@@ -657,43 +639,46 @@ class population:
 
     def showInfState(self, all=False, dx=.1):
         self.calcState()
-        pData = self.acc.acc["pField"]
-        vData = self.acc.acc["vField"]
+        pData = self.acc.acc["exposure"]
+        vData = self.acc.acc["field"]
         lpData = []
         lvData = []
         for i in range(0, len(pData)):
             if pData[i] == 0:
-                lpData.append(2**-35)
+                lpData.append(-35)
             else:
                 lpData.append(math.log(pData[i]))
         for i in range(0, len(vData)):
             if vData[i] == 0:
-                lvData.append(2**-35)
+                lvData.append(-35)
             else:
                 lvData.append(math.log(vData[i]))
                 
         print("\nPersons(#,#inf,ln(field)): (" +
               str(self.acc.acc["nPerson"]) + ", " +
               str(self.acc.acc["nInf"]) + ", " +
-              str(statistics.mean(pData)) + " +/- " +
+              str(statistics.mean(lpData)) + " +/- " +
               str(statistics.stdev(lpData)) + ")")
+        if len(lpData) < 20:
+            print("exposure: ", lpData)
         print("\nNodes(#, ln(field)): (" +
               str(self.acc.acc["ndNum"]) + ", " +
-              str(statistics.mean(vData)) + " +/- " +
+              str(statistics.mean(lvData)) + " +/- " +
               str(statistics.stdev(lvData)) + ")")
+        if len(lpData) < 20:
+            print(lvData)
 
     def calcState(self):
         self.acc = population.accum()
         for nd in cng.names.values():
-            field = nd.field
             if isinstance(nd, person):
                 if nd.infected:
                     self.acc.acc["nInf"] += 1
-                self.acc.acc["pField"].append(field)
+                self.acc.acc["exposure"].append(nd._exposure)
                 self.acc.acc["nPerson"] += 1
             else:
                 self.acc.acc["ndNum"] += 1
-                self.acc.acc["vField"].append(field)
+                self.acc.acc["field"].append(nd.field)
         return self.acc
 
     def setInfPct(self, val=.25):
@@ -768,9 +753,9 @@ import pdb; pdb.set_trace()
 
 
 xx = population()
-xx.populate(typ=person, num=10)
+xx.populate(typ=person, num=100)
 # #
-xx.populate(typ=dispatch["bar"], num=3)
+xx.populate(typ=dispatch["bar"], num=8)
 xx.setInfPct()  # #default 10%
 xx.connectTypes("person", "bar")
 xx.showPaths()
