@@ -33,6 +33,8 @@ class disease:
     def antibody(prsn, nStep):
         pass
 
+    def dFactor(self, nSteps):
+        return math.exp(cng.disease.vdfDecayPerStepExp * nSteps)
 
 class future:
 
@@ -74,17 +76,17 @@ class future:
     def reset(self):
         self.currentStep += 1
         self.maxStep = max(self.maxStep, self.currentStep+1)
-        assert(self == currentNodeGroup.time)
-        currentNodeGroup.personDone = 0
-        for ii in currentNodeGroup.names.values():
+        assert(self == cng.time)
+        cng.personDone = 0
+        for ii in cng.names.values():
             ii.reset()  # # reset
             if isinstance(ii, person) and ii.nextPath is not None:
                 self.scheduleAt(ii, self.currentStep)
-                currentNodeGroup.personDone -= 1
+                cng.personDone -= 1
                 pth = ii.paths[ii.nextPath]
                 if pth.curLoc is None:
                     pth.curLoc = 0
-        assert(currentNodeGroup.personDone == - len(currentNodeGroup.persons))
+        assert(cng.personDone == - len(cng.persons))
 
     def popNextNode(self):  # #null when events array is empty
         nn = self.events.get(self.currentStep)
@@ -118,7 +120,7 @@ class future:
         return nd.process()
 
     def step(self):  # #step(s) must be preceded by initSim
-        while currentNodeGroup.personDone < 0:
+        while cng.personDone < 0:
             nd = self.processNextNode()
             if nd is None:
                 # #print("\n\nCompleted DEPTH: " + str(self.currentStep))
@@ -128,7 +130,7 @@ class future:
         return
 
 
-currentNodeGroup = None
+cng = None
 
 class nodeGroup:
     def __init__(self):
@@ -140,10 +142,10 @@ class nodeGroup:
         self.disease = disease()
         self.personDone = 0
         
-currentNodeGroup = nodeGroup()
+cng = nodeGroup()
 
 def getCurrentNodeGroup():
-    return currentNodeGroup
+    return cng
 
 
 class node:
@@ -153,22 +155,22 @@ class node:
 
     def reset(self):  # #for next step
         self.lastStep = self._fieldStep
-        self._fieldStep = currentNodeGroup.time.currentStep
+        self._fieldStep = cng.time.currentStep
 
     def __init__(self, name, sqM=1, role=TYPES[0], field=0):
         self.name = name
 
-        if name in currentNodeGroup.names:
+        if name in cng.names:
             print("Recreating " + str(name))
-        currentNodeGroup.names[name] = self
+        cng.names[name] = self
         self._field = field  # #infectivity
-        self._fieldStep = currentNodeGroup.time.currentStep
+        self._fieldStep = cng.time.currentStep
         self._role = role
         self._sqM = sqM
         self.crowdFactor = 1
         self.delay = 1  # #steps ascribed to passage thru
         self.inReady = [[], [], []]  # #paths & field connections
-        self.lastStep = currentNodeGroup.time.currentStep
+        self.lastStep = cng.time.currentStep
         self.maxInReady = 2  # #stores available values 
         self.processInterval = 5
         self.scheduledAt = -1
@@ -184,8 +186,8 @@ class node:
         return val
 
     def reschedule(self):
-        currentNodeGroup.time.scheduleAt(
-            self, currentNodeGroup.time.currentStep + self.processInterval)
+        cng.time.scheduleAt(
+            self, cng.time.currentStep + self.processInterval)
 
 
         
@@ -235,11 +237,11 @@ class node:
         for i in range(0, len(valA)):
             path = pathA[i]
             step = stepA[i]
-            dt = currentNodeGroup.time.currentStep - step
+            dt = cng.time.currentStep - step
             if dt < 0:
                 continue
             assert(dt >= 0)
-            factor = math.exp(currentNodeGroup.disease.vdfDecayPerStepExp * dt)
+            factor = cng.disease.dFactor(dt)
             val = valA[i]
             cNode = path.nodes[path.curLoc]
             thisVDFM2 = cNode._sqM
@@ -262,13 +264,13 @@ class node:
     @field.setter
     def field(self, val):
         dt = self._fieldStep - self.lastStep
-        factor = math.exp(currentNodeGroup.disease.vdfDecayPerStepExp * dt)
+        factor = cng.disease.dFactor(dt)
         if not isinstance(self, person):
             self._field = (self._field * factor + val)/2.0
         else:
             self._field = val
         self.lastStep = self._fieldStep
-        self._fieldStep = currentNodeGroup.time.currentStep
+        self._fieldStep = cng.time.currentStep
 
     class path:
         # #path:  ONE  person node (may occur at start or end)
@@ -342,13 +344,13 @@ class node:
             targetNode = self.nodes[self.curLoc+self.forward]
             if not isinstance(srcNode, person):
                 self._exposure\
-                    += srcField * srcNode.delay
+                    += srcField * cng.disease.dFactor(srcNode.delay)
             else:
                  self._exposure\
-                    += (1 - srcNode.pFactor) * srcField * srcNode.delay
+                    += (1 - srcNode.pFactor) * srcField * cng.disease.dFactor(srcNode.delay)
             targetNode.ready(srcField, srcFieldAvailableTime, self)
-            t1 = max(currentNodeGroup.time.currentStep, srcFieldAvailableTime)
-            currentNodeGroup.time.scheduleAt(targetNode, t1)
+            t1 = max(cng.time.currentStep, srcFieldAvailableTime)
+            cng.time.scheduleAt(targetNode, t1)
             return self
 
 
@@ -431,7 +433,7 @@ class person(node):
         node.__init__(self, name, role="PERSON")
         self._infected = False
         self._infectedStep = -1
-        currentNodeGroup.persons.append(self)
+        cng.persons.append(self)
         self.paths = []
         self.nextPath = None
         self._exposure = 0  # #time integral of field
@@ -452,17 +454,22 @@ class person(node):
 
     def process(self):  # #ALONG A PATH
         self.observable = not self.observable
-        if (self.infected):
-            self._field = 1   # #assignment overloaded in node
         tPath = self.paths[self.nextPath]
         if self.observable:
-            self._exposure += tPath._exposure
-            print("\n" + str(self.name) + " @ " + str(self._fieldStep) +
-                  ":\t" + str(self.inReady[0]) + ", field=\t" + str(self.field) +
-                  ", exposure=\t" + str(self._exposure))
+            dt = cng.time.currentStep - self._fieldStep
+            assert(dt > 0)
+            factor = cng.disease.dFactor(dt)
+            self._exposure = tPath._exposure + self._exposure * factor
+            tPath._exposure = 0  # #reset exposure along path to zero.
+            if (false):
+                print("\n" + str(self.name) + " @ " + str(self._fieldStep) +
+                      ":\t" + str(self.inReady[0]) + ", field=\t" +
+                      str(self.field) + ", exposure=\t" + str(self._exposure))
             self.inReady = [[], [], []]
-            currentNodeGroup.personDone += 1
+            cng.personDone += 1
             return True
+        if (self.infected):
+            self._field = 1   # #assignment overloaded in node
         node.process(self)
         tPath.forward *= -1
         # #assert(tPath.nodes[tPath.curLoc] == self)
@@ -479,7 +486,7 @@ class person(node):
     @infected.setter
     def infected(self, val):
         self._infected = val
-        self._infectedStep = currentNodeGroup.time.currentStep
+        self._infectedStep = cng.time.currentStep
 
     def addPath(self, path):
         if (self.nextPath is None):
@@ -507,7 +514,7 @@ class person(node):
         if self._infected:
             val = 1.0
         if len(self.inReady[0]) == 1:   # #value path end
-            return (1-self.pFactor)*(val+self.inReady[0][0])
+            return (1-self.pFactor)*(val+self.inReady[0][0])/2.0
         else:
             return val
 
@@ -548,14 +555,14 @@ class composite(node):
         nName = cComposite.name
         for j in range(0, len(pathA) - 1):
             nName = nName + "." + str(pathA[j])
-            nd = currentNodeGroup.names.get(nName)
+            nd = cng.names.get(nName)
             if (nd is None):
                 nd = composite(nName, self.level-j-1)
                 self.children[pathA[j]] = nd
             q.append(nd)
         if bNode is None:
             bNode = tp(self.name + "." +
-                       str(len(currentNodeGroup.names.values())))
+                       str(len(cng.names.values())))
         q.append(bNode)
         q.reverse()
         rv = node.path(q)
@@ -568,7 +575,7 @@ class composite(node):
         self.level = max(self.level, len(pathA))
         if len(pathA) > 0:
             cName = self.name + "." + str(pathA[0])
-            nd = currentNodeGroup.names.get(cName)
+            nd = cng.names.get(cName)
             if (nd is None):
                 nd = composite(cName, self.level-1)
                 self.children[pathA[0]] = nd
@@ -578,7 +585,7 @@ class composite(node):
         else:
             if bNode is None:
                 bNode = tp(self.name + "." +
-                           str(len(currentNodeGroup.names.values())))
+                           str(len(cng.names.values())))
             return node.path([bNode, self])
 
 
@@ -610,12 +617,12 @@ class population:
         self.pctInf = 0
         self.acc = population.accum()
         if name is None:
-            name = "P_" + str(len(currentNodeGroup.names.keys()))
+            name = "P_" + str(len(cng.names.keys()))
         self.composite = composite(name)
         self.paths = {}   # #arranged by start type
         for nm in dispatch.keys():
             self.paths[nm] = []
-        self.nodeGroup = currentNodeGroup
+        self.nodeGroup = cng
 
     def prune(self):
         for i in dispatch.keys():  # #for each type
@@ -677,7 +684,7 @@ class population:
 
     def calcState(self):
         self.acc = population.accum()
-        for nd in currentNodeGroup.names.values():
+        for nd in cng.names.values():
             field = nd.field
             if isinstance(nd, person):
                 if nd.infected:
@@ -691,22 +698,22 @@ class population:
 
     def setInfPct(self, val=.25):
         self.pctInf = val
-        for prsn in currentNodeGroup.persons:
+        for prsn in cng.persons:
             if random.uniform(0, 1) < val:
                 prsn.infected = True
             else:
                 prsn.infected = False
 
     def initSim(self):
-        currentNodeGroup = self.nodeGroup
-        currentNodeGroup.time.reset()
+        cng = self.nodeGroup
+        cng.time.reset()
 
     def step(self, numIter=5, follow=True):
         self.initSim()
         for i in range(0, numIter):
-            currentNodeGroup.time.step()
+            cng.time.step()
             if i < numIter - 1:
-                currentNodeGroup.time.reset()
+                cng.time.reset()
             if follow:
                 self.showInfState()
         if not follow:
@@ -722,7 +729,7 @@ class population:
             pathA = []
             for j in range(0, len(shape) - 1):
                 pathA.append(random.randint(0, shape[j]-1))
-            nodeName = typeName + str(len(currentNodeGroup.names.values()))
+            nodeName = typeName + str(len(cng.names.values()))
             ithPath = self.composite.pathTo(pathA, typ(nodeName))
             ithNode = ithPath.nodes[ithPath.curLoc]
             if ithPath is None:
