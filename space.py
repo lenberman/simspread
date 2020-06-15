@@ -245,7 +245,7 @@ class node:
                 continue
             assert(dt >= 0)
             factor = cng.disease.dFactor(dt)
-            val = valA[i]
+            val = valA[i]**.5
             cNode = path.nodes[path.curLoc]
             thisVDFM2 = cNode._sqM
             total += (val * thisVDFM2 * factor)
@@ -654,14 +654,14 @@ class population:
             else:
                 lvData.append(math.log(vData[i]))
                 
-        print("\nPersons(#,#inf,ln(field)): (" +
+        print("\nPersons(#,#inf,ln(exposure)): (" +
               str(self.acc.acc["nPerson"]) + ", " +
               str(self.acc.acc["nInf"]) + ", " +
               str(statistics.mean(lpData)) + " +/- " +
               str(statistics.stdev(lpData)) + ")")
         if len(lpData) < 20:
             print("exposure: ", lpData)
-        print("\nNodes(#, ln(field)): (" +
+        print("Nodes(#, ln(field)): (" +
               str(self.acc.acc["ndNum"]) + ", " +
               str(statistics.mean(lvData)) + " +/- " +
               str(statistics.stdev(lvData)) + ")")
@@ -700,6 +700,7 @@ class population:
             if i < numIter - 1:
                 cng.time.reset()
             if follow:
+                print("Step" + str(i))
                 self.showInfState()
         if not follow:
             self.showInfState()
@@ -756,11 +757,11 @@ xx = population()
 xx.populate(typ=person, num=100)
 # #
 xx.populate(typ=dispatch["bar"], num=8)
-xx.setInfPct()  # #default 10%
+xx.setInfPct(.1)  # #default 25s%
 xx.connectTypes("person", "bar")
 xx.showPaths()
 xx.prune()
 xx.showPaths()
 xx.showInfState()
-xx.step(5, follow=False)
+xx.step(50, follow=True)
 
