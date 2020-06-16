@@ -26,6 +26,7 @@ class disease:
         # #how rapidly does vdf disperse.
         self.vdfDecayPerStepExp = \
             -math.log(2.0)/(vdfHalfLifeMinutes/minutesPerStep)
+        self.pathFactor = .5  # #accumulation along paths
 
     def infectivity(prsn):
         pass
@@ -141,7 +142,6 @@ class nodeGroup:
         self.seed = random.getstate()
         self.disease = disease()
         self.personDone = 0
-        self.pathFactor = .5  # #accumulation along paths
 
         
 cng = nodeGroup()
@@ -346,11 +346,11 @@ class node:
                 self.forward *= -1
             targetNode = self.nodes[self.curLoc+self.forward]
             factor = cng.disease.dFactor(srcNode.delay)
-            srcNodeContribution = srcField * factor * cng.pathFactor
+            srcNodeContribution = srcField * factor * cng.disease.pathFactor
             # srcNode pFactor for PPE
             if isinstance(srcNode, person):
                 srcNodeContribution *= (1 - srcNode.pFactor)
-            self._exposure = srcNodeContribution + (1 - cng.pathFactor) * self._exposure
+            self._exposure = srcNodeContribution + (1 - cng.disease.pathFactor) * self._exposure
             targetNode.ready(srcField, srcFieldAvailableTime, self)
             t1 = max(cng.time.currentStep, srcFieldAvailableTime)
             cng.time.scheduleAt(targetNode, t1)
@@ -745,23 +745,7 @@ class population:
                 splice.nodes[lt2 - 1].addPath(splice)
 
 
-import pdb; pdb.set_trace()
 
 #x = dispatch["room"]("ROOM")
 
-
-
-
-
-xx = population()
-xx.populate(typ=person, num=100)
-# #
-xx.populate(typ=dispatch["bar"], num=8)
-xx.setInfPct(.01)  # #default 25s%
-xx.connectTypes("person", "bar")
-xx.showPaths()
-xx.prune()
-xx.showPaths()
-xx.showInfState()
-xx.step(500, follow=True)
 
