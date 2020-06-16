@@ -608,10 +608,10 @@ class population:
 
     def prune(self):
         for i in dispatch.keys():  # #for each type
-            paths_SrcType = self.paths[i]
-            if len(paths_SrcType) > 0:  # #if something is there
+            paths_SrcType_I = self.paths[i]
+            if len(paths_SrcType_I) > 0:  # #if something is there
                 newPathList = []
-                for pth in paths_SrcType:
+                for pth in paths_SrcType_I:
                     if pth is None or pth.nodes[0] is None:
                         import pdb; pdb.set_trace()    
                         print("None")
@@ -627,10 +627,10 @@ class population:
     def showPaths(self):
         print("Population(" + self.composite.name + ")")
         for i in dispatch.keys():  # #for each type
-            paths_SrcType = self.paths[i]
-            if len(paths_SrcType) > 0:  # #if something is there
+            paths_SrcType_I = self.paths[i]
+            if len(paths_SrcType_I) > 0:  # #if something is there
                 print("Paths from type:" + i)
-                for j in paths_SrcType:
+                for j in paths_SrcType_I:
                     if j is None or j.nodes[0] is None:
                         import pdb; pdb.set_trace()
                         print(">>>>>unexpected None:" + str(j))
@@ -757,11 +757,11 @@ xx = population()
 xx.populate(typ=person, num=100)
 # #
 xx.populate(typ=dispatch["bar"], num=8)
-xx.setInfPct(.1)  # #default 25s%
+xx.setInfPct(.01)  # #default 25s%
 xx.connectTypes("person", "bar")
 xx.showPaths()
 xx.prune()
 xx.showPaths()
 xx.showInfState()
-xx.step(50, follow=True)
+xx.step(500, follow=True)
 
