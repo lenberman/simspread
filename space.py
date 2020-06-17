@@ -44,7 +44,7 @@ class future:
         self.currentStep = 0
         self.maxStep = 0
         self.minutesPerStep = 6
-        
+
     def __str__(self):
         rv = "Current " + str(self.currentStep) + ", max " + str(self.maxStep)
         rv += str(self.events)
@@ -58,7 +58,7 @@ class future:
             if nodeCurrentSchedule > time:
                 return
         else:  # #could be a path end
-            import pdb; pdb.set_trace()  
+            import pdb; pdb.set_trace()
             nodeCurrentSchedule = -1
         self.maxStep = max(self.maxStep, time, nodeCurrentSchedule)
         if isinstance(nd, node):
@@ -108,7 +108,7 @@ class future:
             rv = nn[0]
             nn = nn[1:]
             self.events[self.currentStep] = nn
-            assert(isinstance(rv, node) or isinstance(rv, node.path))
+            assert(isinstance(rv, node) or isinstance(rv, path))
             if isinstance(rv, node):
                 rv.scheduledAt = -1
             return rv
@@ -117,7 +117,7 @@ class future:
         nd = self.popNextNode()
         if(nd is None):
             return None
-        assert(isinstance(nd, node) or isinstance(nd, node.path))
+        assert(isinstance(nd, node) or isinstance(nd, path))
         return nd.process()
 
     def step(self):  # #step(s) must be preceded by initSim
@@ -143,7 +143,7 @@ class nodeGroup:
         self.disease = disease()
         self.personDone = 0
 
-        
+
 cng = nodeGroup()
 
 
@@ -174,7 +174,7 @@ class node:
         self.delay = 1  # #steps ascribed to passage thru
         self.inReady = [[], [], []]  # #paths & field connections
         self.lastStep = cng.time.currentStep
-        self.maxInReady = 2  # #stores available values 
+        self.maxInReady = 2  # #stores available values
         self.processInterval = 5
         self.scheduledAt = -1
 
@@ -193,7 +193,7 @@ class node:
             self, cng.time.currentStep + self.processInterval)
 
 
-        
+
     def process(self):
         # calculates new field value from InReady
         self.field = self.calculate()
@@ -215,7 +215,7 @@ class node:
             prevNode = tPath.nodes[tPath.curLoc]
             pAvail = prevNode._fieldStep + prevNode.delay
             if pAvail <= self._fieldStep:
-                #  #and pAvail > self.lastStep and 
+                #  #and pAvail > self.lastStep and
                 # #value from this path processed.  Respect maxInReady!
                 tPath.curLoc += tPath.forward
                 tPath.process()
@@ -275,86 +275,87 @@ class node:
         self.lastStep = self._fieldStep
         self._fieldStep = cng.time.currentStep
 
-    class path:
-        # #path:  ONE  person node (may occur at start or end)
-        def __init__(self, array=[]):
-            self.nodes = []
-            self.to(array)
-            self.curLoc = None
-            if len(array) > 0:
-                self.curLoc = 0
-            self.forward = -1
-            self._exposure = 0
 
-        def to(self, a):
-            for i in a:
-                if isinstance(i,int):
-                    import pdb; pdb.set_trace()
-                    print("Unexpected int")
-            self.nodes.extend(a)
+class path:
+    # #path:  ONE  person node (may occur at start or end)
+    def __init__(self, array=[]):
+        self.nodes = []
+        self.to(array)
+        self.curLoc = None
+        if len(array) > 0:
+            self.curLoc = 0
+        self.forward = -1
+        self._exposure = 0
 
-        def frm(self, a):
-            self.nodes = [a].extend(self.nodes)
-            self.curLoc = None
+    def to(self, a):
+        for i in a:
+            if isinstance(i,int):
+                import pdb; pdb.set_trace()
+                print("Unexpected int")
+        self.nodes.extend(a)
 
-        def adjoin(self, path):
-            assert(path.nodes[0] == self.nodes[len(self.nodes) - 1])
-            self.nodes.extend(arr[1:])
+    def frm(self, a):
+        self.nodes = [a].extend(self.nodes)
+        self.curLoc = None
 
-        def extendPath(self, extension):
-            import pdb; pdb.set_trace()
-            self.paths.append(extension.nodes[1:])
+    def adjoin(self, path):
+        assert(path.nodes[0] == self.nodes[len(self.nodes) - 1])
+        self.nodes.extend(arr[1:])
 
-        def splice(self, path2):   # #minimal path connecting endpts
-            l1 = len(self.nodes)
-            l2 = len(path2.nodes)
-            assert(path2.nodes[l2 - 1] == self.nodes[l1 - 1])
-            for j in range(1, min(l1, l2)):
-                if path2.nodes[l2 - j] != self.nodes[l1 - j]:
-                    start = self.nodes[:l1 - j + 1].copy()
-                    end = path2.nodes[:l2 - j + 1].copy()
-                    end.reverse()
-                    start.extend(end)
-                    return node.path(start)
-            return node.path([self.nodes[0], path2.nodes[0]])
+    def extendPath(self, extension):
+        import pdb; pdb.set_trace()
+        self.paths.append(extension.nodes[1:])
+
+    def splice(self, path2):   # #minimal path connecting endpts
+        l1 = len(self.nodes)
+        l2 = len(path2.nodes)
+        assert(path2.nodes[l2 - 1] == self.nodes[l1 - 1])
+        for j in range(1, min(l1, l2)):
+            if path2.nodes[l2 - j] != self.nodes[l1 - j]:
+                start = self.nodes[:l1 - j + 1].copy()
+                end = path2.nodes[:l2 - j + 1].copy()
+                end.reverse()
+                start.extend(end)
+                return path(start)
+        return path([self.nodes[0], path2.nodes[0]])
 
 
 
-        def __str__(self):
-            rv = []
-            if self.forward:
-                direction = "==>>>>"
+    def __str__(self):
+        rv = []
+        if self.forward:
+            direction = "==>>>>"
+        else:
+            direction = "<<<<=="
+        for i in self.nodes:
+            if (self.curLoc is not None) and i == self.nodes[self.curLoc]:
+                rv.append("*" + i.name + "*")
             else:
-                direction = "<<<<=="
-            for i in self.nodes:
-                if (self.curLoc is not None) and i == self.nodes[self.curLoc]:
-                    rv.append("*" + i.name + "*")
-                else:
-                    rv.append(i.name)
-            return direction + str(rv)
+                rv.append(i.name)
+        return direction + str(rv)
 
-        def process(self):  # #one step at a time
-            # #determine src and dest for this step 
-            srcNode = self.nodes[self.curLoc]
-            srcField = srcNode.field
-            srcFieldAvailableTime = srcNode._fieldStep + srcNode.delay
-            if self.curLoc + self.forward < 0 or \
-               self.curLoc + self.forward >= len(self. nodes):
-                # #reverse path at current node
-                # #curLoc is end of this path
-                # import pdb; pdb.set_trace()
-                self.forward *= -1
-            targetNode = self.nodes[self.curLoc+self.forward]
-            factor = cng.disease.dFactor(srcNode.delay)
-            srcNodeContribution = srcField * factor * cng.disease.pathFactor
-            # srcNode pFactor for PPE
-            if isinstance(srcNode, person):
-                srcNodeContribution *= (1 - srcNode.pFactor)
-            self._exposure = srcNodeContribution + (1 - cng.disease.pathFactor) * self._exposure
-            targetNode.ready(srcField, srcFieldAvailableTime, self)
-            t1 = max(cng.time.currentStep, srcFieldAvailableTime)
-            cng.time.scheduleAt(targetNode, t1)
-            return self
+    def process(self):  # #one step at a time
+        # #determine src and dest for this step
+        srcNode = self.nodes[self.curLoc]
+        srcField = srcNode.field
+        srcFieldAvailableTime = srcNode._fieldStep + srcNode.delay
+        if self.curLoc + self.forward < 0 or \
+           self.curLoc + self.forward >= len(self. nodes):
+            # #reverse path at current node
+            # #curLoc is end of this path
+            # import pdb; pdb.set_trace()
+            self.forward *= -1
+        targetNode = self.nodes[self.curLoc+self.forward]
+        factor = cng.disease.dFactor(srcNode.delay)
+        srcNodeContribution = srcField * factor * cng.disease.pathFactor
+        # srcNode pFactor for PPE
+        if isinstance(srcNode, person):
+            srcNodeContribution *= (1 - srcNode.pFactor)
+        self._exposure = srcNodeContribution + (1 - cng.disease.pathFactor) * self._exposure
+        targetNode.ready(srcField, srcFieldAvailableTime, self)
+        t1 = max(cng.time.currentStep, srcFieldAvailableTime)
+        cng.time.scheduleAt(targetNode, t1)
+        return self
 
 
 
@@ -568,7 +569,7 @@ class composite(node):
                        str(len(cng.names.values())))
         q.append(bNode)
         q.reverse()
-        rv = node.path(q)
+        rv = path(q)
         assert(rv is not None)
         return rv
 
@@ -579,7 +580,7 @@ class building(composite):
         self.numElevators = shape[2]
         self.numFloors = shape[3]
 
-        
+
 dispatch = {"bar": bar, "bus": bus, "busstop": busstop, "car": car,
             "carriage": carriage, "composite": composite,
             "elevator":  elevator, "medical":  medical, "person": person,
@@ -613,7 +614,7 @@ class population:
                 newPathList = []
                 for pth in paths_SrcType_I:
                     if pth is None or pth.nodes[0] is None:
-                        import pdb; pdb.set_trace()    
+                        import pdb; pdb.set_trace()
                         print("None")
                     elif pth.nodes[len(pth.nodes) - 1] == self.composite:
                         print("\nRemoving " + str(pth))
@@ -653,7 +654,7 @@ class population:
                 lvData.append(-35)
             else:
                 lvData.append(math.log(vData[i]))
-                
+
         print("\nPersons(#,#inf,ln(exposure)): (" +
               str(self.acc.acc["nPerson"]) + ", " +
               str(self.acc.acc["nInf"]) + ", " +
@@ -720,7 +721,7 @@ class population:
             ithNode = ithPath.nodes[ithPath.curLoc]
             if ithPath is None:
                 import pdb; pdb.set_trace()
-                print 
+                print
             else:
                 self.paths[typeName].append(ithPath)
             if (typeName == "person"):
@@ -747,5 +748,3 @@ class population:
 
 
 #x = dispatch["room"]("ROOM")
-
-
