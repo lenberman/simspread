@@ -77,7 +77,6 @@ class future:
     def reset(self):
         self.currentStep += 1
         self.maxStep = max(self.maxStep, self.currentStep+1)
-        assert(self == cng.time)
         cng.personDone = 0
         for ii in cng.names.values():
             ii.reset()  # # reset
@@ -587,25 +586,27 @@ dispatch = {"bar": bar, "bus": bus, "busstop": busstop, "car": car,
             "platform": platform, "restaurant": restaurant, "room": room,
             "stairway": stairway, "store": store, "street": street}
 
-class population:
-    class accum:
-        def __init__(self):
-            self.acc = {"nInf": 0, "exposure": [], "nPerson": 0,
-                        "field": [], "ndNum": 0}
+class accum:
+    def __init__(self):
+        self.acc = {"nInf": 0, "exposure": [], "nPerson": 0,
+                    "field": [], "ndNum": 0}
+        
+    def __str__(self):
+        return str(self.acc)
 
-        def __str__(self):
-            return str(self.acc)
+
+class population:
 
     def __init__(self, name=None):
         self.pctInf = 0
-        self.acc = population.accum()
+        self.acc = accum()
         if name is None:
             name = "P_" + str(len(cng.names.keys()))
         self.composite = composite(name)
         self.paths = {}   # #arranged by start type
         for nm in dispatch.keys():
             self.paths[nm] = []
-        self.nodeGroup = cng
+        self.cng = cng
 
     def prune(self):
         for i in dispatch.keys():  # #for each type
@@ -670,8 +671,8 @@ class population:
             print(lvData)
 
     def calcState(self):
-        self.acc = population.accum()
-        for nd in cng.names.values():
+        self.acc = accum()
+        for nd in self.cng.names.values():
             if isinstance(nd, person):
                 if nd.infected:
                     self.acc.acc["nInf"] += 1
@@ -684,22 +685,21 @@ class population:
 
     def setInfPct(self, val=.25):
         self.pctInf = val
-        for prsn in cng.persons:
+        for prsn in self.cng.persons:
             if random.uniform(0, 1) < val:
                 prsn.infected = True
             else:
                 prsn.infected = False
 
     def initSim(self):
-        cng = self.nodeGroup
-        cng.time.reset()
+        self.cng.time.reset()
 
     def step(self, numIter=5, follow=True):
         self.initSim()
         for i in range(0, numIter):
-            cng.time.step()
+            self.cng.time.step()
             if i < numIter - 1:
-                cng.time.reset()
+                self.cng.time.reset()
             if follow:
                 print("Step" + str(i))
                 self.showInfState()
@@ -716,7 +716,7 @@ class population:
             pathA = []
             for j in range(0, len(shape) - 1):
                 pathA.append(random.randint(0, shape[j]-1))
-            nodeName = typeName + str(len(cng.names.values()))
+            nodeName = typeName + str(len(self.cng.names.values()))
             ithPath = self.composite.pathTo(pathA, typ(nodeName))
             ithNode = ithPath.nodes[ithPath.curLoc]
             if ithPath is None:
