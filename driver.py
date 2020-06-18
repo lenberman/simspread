@@ -18,7 +18,8 @@ xx.showPaths()
 xx.prune()
 xx.showPaths()
 xx.showInfState()
+import pdb; pdb.set_trace()
 xx.step(5, follow=True)
 
-import pdb; pdb.set_trace()
+
 print("Finished")
