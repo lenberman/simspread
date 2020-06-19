@@ -130,8 +130,6 @@ class future:
         return
 
 
-cng = None
-
 class nodeGroup:
     def __init__(self):
         self.names = {}
@@ -142,12 +140,6 @@ class nodeGroup:
         self.disease = disease()
         self.personDone = 0
 
-
-Xcng = nodeGroup()
-
-
-def getCurrentNodeGroup():
-    return Xcng
 
 
 class node:
@@ -568,8 +560,10 @@ class composite(node):
         return rv
 
 class building(composite):  # # shape[0] is [#rooms,#people] per apt 
-    def __init__(self, address, cng, shape=[1, 8, 1, 8]):
-        composite.__init__(self, address, cng, COMPOSITE_TYPES[4][0], shape)
+    def __init__(self, cng, address=None, shape=[1, 8, 1, 8]):
+        if address is None:
+            address = "Bldg" + str(len(cng.names.values()))
+        composite.__init__(self, cng, address, COMPOSITE_TYPES[4][0], shape)
         self.roomsPerApt = shape[0]
         self.aptPerFl = shape[1]
         self.numElevators = shape[2]
