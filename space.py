@@ -603,8 +603,29 @@ class population:
             name = "P_" + str(len(self.cng.names.keys()))
         self.composite = composite(name, self.cng)
         self.paths = {}   # #arranged by start type
+        self.levels = {}
         for nm in dispatch.keys():
             self.paths[nm] = []
+
+    def  findLevels(self):
+        done = []
+        finished = False
+        for i in range(0,len(self.cng.names.keys())):
+            finished = True
+            self.levels[i] = []
+            for path in self.paths["person"]:
+                if len(path.nodes) <= i:
+                    continue
+                node = path.nodes[i]
+                if node in done:
+                    continue
+                finished = False
+                done.append(node)
+                self.levels[i].append(node)
+            if finished:
+                break
+        for i in self.levels.keys():
+            print("Level " + str(i), self.levels[i])
 
     def prune(self):
         for i in dispatch.keys():  # #for each type
