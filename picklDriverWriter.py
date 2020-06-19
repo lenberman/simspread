@@ -21,7 +21,6 @@ xx.prune()
 output = open('driver.pkl', 'wb')
 
 pickle.dump(xx, output, -1)
-pickle.dump(cng, output, -1)
 output.close()
 print("Pre-pickling output")
 xx.showPaths()

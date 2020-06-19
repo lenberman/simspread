@@ -25,7 +25,7 @@ Simple model:
 
 1)Infected person produces  some (default=(1/NSTEPS)/step units)
 with VDF 
-2)Probability of infection ~ exponential trailing average of VDF
+2)Probability of infection ∝ exponential trailing average of VDF
 
 A population is a composite with leaves of people
 A business district is a composite with leaf nodes of various types
@@ -43,3 +43,10 @@ Data Structures:
                         showPaths
                         simulate path traversal
                         iterative path traversal.
+
+Approximate viral density in various, interconnected spaces. A graphical model (nodes & paths).
+Nodes may be 'person' (or spatial nodes (subway, elevator,office..). Each path begins
+and ends at one of the person node.  Spatial nodes have characteristics relevant(?) to
+transmission.  Characteristics of the spatial nodes represent social distancing rules.
+
+∝

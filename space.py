@@ -13,7 +13,7 @@ class disease:
                  psym=0,  # #contagious for this long after symptoms clear
                  abt=14400,  # # post-symtom appeearance of antibodies(min)
                  vdfHalfLifeMinutes=7200  #
-):
+    ):
         self.minutesPerStep = minutesPerStep
         # time(minutes) from exposure until onset of symptoms
         self.asym = asym
@@ -703,6 +703,10 @@ class population:
                 self.showInfState()
         if not follow:
             self.showInfState()
+
+    def absorb(self, population, cut1=[], cut2=[]):
+        pass
+
 
     def populate(self, typ=dispatch["person"], num=10, maxLevel=0, shape=[1,8,2,12,4]):
         # #maxLevel to control distributions of nonCompos
