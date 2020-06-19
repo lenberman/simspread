@@ -620,18 +620,27 @@ class population:
             self.cng = cng
         self.pctInf = 0
         self.acc = accum()
+        self.composite = root
         if not root is None:
-            name = "P_" + root.name
-            self.composite = root
+            self.name = "P_" + root.name
         else:
             if name is None:
-                name = "P_" + str(len(self.cng.names.keys()))
-            self.composite = composite(self.cng, name)
+                self.name = "P_" + str(len(self.cng.names.keys()))
+            else:
+                self.name = name
         self.paths = {}   # #arranged by start type
         self.levels = {}
         for nm in dispatch.keys():
             self.paths[nm] = []
 
+    def setRoot(self, composite):
+        if not composite in self.cng.names.values():
+            assert(False)
+        self.composite = composite
+
+    def getCNG(self):
+        return self.cng
+        
     def  findLevels(self):
         done = []
         finished = False
@@ -671,6 +680,8 @@ class population:
                 self.paths[i] = newPathList
 
     def showPaths(self):
+        if self.composite is None:
+            self.composite = composite(self.cng, self.name)
         print("Population(" + self.composite.name + ")")
         for i in dispatch.keys():  # #for each type
             paths_SrcType_I = self.paths[i]
@@ -755,6 +766,8 @@ class population:
 
 
     def populate(self, typ=dispatch["person"], num=10, maxLevel=0, shape=[1,8,2,12,4]):
+        if self.composite is None:
+            self.composite = composite(self.cng, self.name)
         # #maxLevel to control distributions of nonCompos
         for ii in dispatch.keys():
             if dispatch[ii] == typ:
