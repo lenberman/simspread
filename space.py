@@ -151,17 +151,18 @@ def getCurrentNodeGroup():
 
 
 class node:
-    TYPES = ["ROOM", "PERSON", "BAR", "RESTAURANT", "STORE",  "MEDICAL", "BUS",
-             "CAR", "CARRIAGE", "PLATFORM", "BUSSTOP",  "ELEVATOR", "STAIRWAY",
-             "STREET", "COMPOSITE"]
+    SPACE_TYPES = ["ROOM", "PERSON", "BAR", "RESTAURANT", "STORE",
+                   "MEDICAL", "BUS", "CAR", "CARRIAGE", "PLATFORM",
+                   "BUSSTOP",  "ELEVATOR", "STAIRWAY", "STREET", "COMPOSITE"]
 
     def reset(self, cng):  # #for next step
         self.lastStep = self._fieldStep
         self._fieldStep = cng.time.currentStep
 
-    def __init__(self, name, cng, sqM=1, role=TYPES[0], field=0):
+    def __init__(self, cng, name=None, sqM=1, role=SPACE_TYPES[0], field=0):
+        if name is None:
+            name = Node+str(len(cng.names.keys()))
         self.name = name
-
         if name in cng.names:
             print("Recreating " + str(name))
         cng.names[name] = self
@@ -359,14 +360,14 @@ class path:
 
 #import spaceTypes
 class room(node):
-    def __init__(self, name, cng):
-        node.__init__(self, name, cng)
+    def __init__(self, cng, name=None):
+        node.__init__(self, cng, name)
 
 
 
 class bar(node):
-    def __init__(self, name, cng):
-        node.__init__(self, name, cng)
+    def __init__(self, cng, name=None):
+        node.__init__(self, cng, name)
         self._sqM = 20
         self.maxInReady = 20
         self.processInterval = 5
@@ -375,64 +376,64 @@ class bar(node):
 
 
 class restaurant(node):
-    def __init__(self, name, cng):
-        node.__init__(self, name, cng)
+    def __init__(self, cng, name=None):
+        node.__init__(self, cng, name)
 
 
 class store(node):
-    def __init__(self, name, cng):
-        node.__init__(self, name, cng)
+    def __init__(self, cng, name=None):
+        node.__init__(self, cng, name)
 
 
 class medical(node):
-    def __init__(self, name, cng):
-        node.__init__(self, name, cng)
+    def __init__(self, cng, name=None):
+        node.__init__(self, cng, name)
 
 
 class bus(node):
-    def __init__(self, name, cng):
-        node.__init__(self, name, cng)
+    def __init__(self, cng, name=None):
+        node.__init__(self, cng, name)
 
 
 class car(node):
-    def __init__(self, name, cng):
-        node.__init__(self, name, cng)
+    def __init__(self, cng, name=None):
+        node.__init__(self, cng, name)
 
 
 class carriage(node):
-    def __init__(self, name, cng):
-        node.__init__(self, name, cng)
+    def __init__(self, cng, name=None):
+        node.__init__(self, cng, name)
 
 
 class platform(node):
-    def __init__(self, name, cng):
-        node.__init__(self, name, cng)
+    def __init__(self, cng, name=None):
+        node.__init__(self, cng, name)
 
 
 class busstop(node):
-    def __init__(self, name, cng):
-        node.__init__(self, name, cng)
+    def __init__(self, cng, name=None):
+        node.__init__(self, cng, name)
 
 
 class elevator(node):
-    def __init__(self, name, cng):
-        node.__init__(self, name, cng)
+    def __init__(self, cng, name=None):
+        node.__init__(self, cng, name)
 
 
 class stairway(node):
-    def __init__(self, name, cng):
-        node.__init__(self, name, cng)
+    def __init__(self, cng, name=None):
+        node.__init__(self, cng, name)
 
 
 class street(node):
-    def __init__(self, name, cng):
-        node.__init__(self, name, cng)
+    def __init__(self, cng, name=None):
+        node.__init__(self, cng, name)
 
 
 
 class person(node):
-    def __init__(self, name, cng):
-        node.__init__(self, name, cng, role="PERSON")
+    def __init__(self, cng, name=None):
+        node.__init__(self, cng, name, role="PERSON")
         self._infected = False
         self._infectedStep = -1
         cng.persons.append(self)
@@ -522,22 +523,19 @@ class person(node):
 
 class composite(node):
     #  #spaces with different characteristics
-    COMPOSITES = {0:     ["ROOM", 1, None],
-                  1:     ["APT", 1, None],
-                  6:     ["WARD", 1, None],
-                  2:     ["FLOOR", 1, None],
-                  3:     ["BUILDING", 1, None],
-                  7:     ["BLOCK", 1, None],
-                  4:     ["HOSPITAL", 1, None],
-                  8:     ["ELEVATOR", 1, None],
-                  5:     ["REGION", 1, None]}
+    COMPOSITE_TYPES = {0:     ["ROOM", 1, None],
+                       1:     ["APT", 1, None],
+                       6:     ["WARD", 1, None],
+                       2:     ["FLOOR", 1, None],
+                       3:     ["BUILDING", 1, None],
+                       7:     ["BLOCK", 1, None],
+                       4:     ["HOSPITAL", 1, None],
+                       8:     ["ELEVATOR", 1, None],
+                       5:     ["REGION", 1, None]}
 
-    def __init__(self, name, cng, level=0, role=COMPOSITES[0][0], nds=[]):
-        xx = composite.COMPOSITES[level]
-        self.level = level
-        node.__init__(self, name, cng, role=role, sqM=xx[1])
+    def __init__(self, cng, name, role=COMPOSITE_TYPES[0][0]):
+        node.__init__(self, cng, name, role=role, sqM=5)
         self.children = {}
-        self.addChildren(nds)
 
     def addChildren(self, cArray):
         j = len(self.children.values()) - 1
@@ -549,7 +547,6 @@ class composite(node):
     # #returns path through composite to bNode
     def pathTo(self, pathA, cng, bNode=None, tp=person):
         # #path to person through children
-        self.level = max(self.level, len(pathA))
         assert(len(pathA) != 0)
         cComposite = self
         q = [cComposite]
@@ -558,7 +555,7 @@ class composite(node):
             nName = nName + "." + str(pathA[j])
             nd = cng.names.get(nName)
             if (nd is None):
-                nd = composite(nName, cng, self.level-j-1)
+                nd = composite(cng, nName)
                 self.children[pathA[j]] = nd
             q.append(nd)
         if bNode is None:
@@ -570,12 +567,33 @@ class composite(node):
         assert(rv is not None)
         return rv
 
-class building(composite):
-    def __init__(self, address, shape=[1, 8, 1, 8]):
+class building(composite):  # # shape[0] is [#rooms,#people] per apt 
+    def __init__(self, address, cng, shape=[1, 8, 1, 8]):
+        composite.__init__(self, address, cng, COMPOSITE_TYPES[4][0], shape)
         self.roomsPerApt = shape[0]
         self.aptPerFl = shape[1]
         self.numElevators = shape[2]
         self.numFloors = shape[3]
+        pathA = []
+        ps = {}
+        for nf in range(0, shape[3]):  # #floors
+            for ne in range(0, shape[2]):  # #elevators
+                for na in range(0, shape[1]):  # #apts
+                    for nr in range(0,shape[0][0]):  # #rooms
+                        tp = []
+                        if shape[3] != 1:
+                            tp =[nf]
+                        if shape[2] != 1:
+                            tp = tp.append(ne)
+                        if shape[1] != 1:
+                            tp = tp.append(na)
+                        if shape[0] != 1:
+                            tp = tp.append(nr)
+                        nm = str(tp)
+                        if not nm in ps:
+                            pathA.append([nf,ne,na,nr,np])
+                        ps[nm]=True
+        self.pathTo(pathA, cng)
 
 
 dispatch = {"bar": bar, "bus": bus, "busstop": busstop, "car": car,
@@ -595,13 +613,20 @@ class accum:
 
 class population:
 
-    def __init__(self, name=None):
-        self.cng = nodeGroup()
+    def __init__(self, name=None, root=None, cng=None):
+        if cng is None:
+            self.cng = nodeGroup()
+        else:
+            self.cng = cng
         self.pctInf = 0
         self.acc = accum()
-        if name is None:
-            name = "P_" + str(len(self.cng.names.keys()))
-        self.composite = composite(name, self.cng)
+        if not root is None:
+            name = "P_" + root.name
+            self.composite = root
+        else:
+            if name is None:
+                name = "P_" + str(len(self.cng.names.keys()))
+            self.composite = composite(self.cng, name)
         self.paths = {}   # #arranged by start type
         self.levels = {}
         for nm in dispatch.keys():
@@ -740,7 +765,7 @@ class population:
             for j in range(0, len(shape) - 1):
                 pathA.append(random.randint(0, shape[j]-1))
             nodeName = typeName + str(len(self.cng.names.values()))
-            ithPath = self.composite.pathTo(pathA, self.cng, typ(nodeName, self.cng))
+            ithPath = self.composite.pathTo(pathA, self.cng, typ(self.cng, nodeName))
             ithNode = ithPath.nodes[ithPath.curLoc]
             if ithPath is None:
                 import pdb; pdb.set_trace()
