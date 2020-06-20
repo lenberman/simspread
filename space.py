@@ -151,14 +151,14 @@ class node:
         self.lastStep = self._fieldStep
         self._fieldStep = cng.time.currentStep
 
-    def __init__(self, cng, name=None, sqM=1, role=SPACE_TYPES[0], field=0):
+    def __init__(self, cng, name=None, sqM=1, role=SPACE_TYPES[0]):
         if name is None:
             name = Node+str(len(cng.names.keys()))
         self.name = name
         if name in cng.names:
             print("Recreating " + str(name))
         cng.names[name] = self
-        self._field = field  # #infectivity
+        self._field = 0  # #infectivity
         self._fieldStep = cng.time.currentStep
         self._role = role
         self._sqM = sqM
@@ -424,8 +424,8 @@ class street(node):
 
 
 class person(node):
-    def __init__(self, cng, name=None):
-        node.__init__(self, cng, name, role="PERSON")
+    def __init__(self, cng, name=""):
+        node.__init__(self, cng, "p-" + name, role="PERSON")
         self._infected = False
         self._infectedStep = -1
         cng.persons.append(self)
@@ -542,7 +542,7 @@ class composite(node):
         assert(len(pathA) != 0)
         cComposite = self
         q = [cComposite]
-        nName = cComposite.name
+        nName = cComposite.name + ":"
         for j in range(0, len(pathA) - 1):
             nName = nName + "." + str(pathA[j])
             nd = cng.names.get(nName)
@@ -551,43 +551,79 @@ class composite(node):
                 self.children[pathA[j]] = nd
             q.append(nd)
         if bNode is None:
-            bNode = tp(self.name + "." +
+            bNode = tp(cng,self.name + "." +
                        str(len(cng.names.values())))
+        if "person" in nd.children.keys():
+            nd.children["person"].append(bNode)
+        else:
+            nd.children["person"] = [bNode]
         q.append(bNode)
         q.reverse()
         rv = path(q)
+        if isinstance(bNode, person):
+            bNode.addPath(rv)
         assert(rv is not None)
         return rv
 
-class building(composite):  # # shape[0] is [#rooms,#people] per apt 
-    def __init__(self, cng, address=None, shape=[1, 8, 1, 8]):
+    def fullTree(self, shape, pop, num=0, collapse=True, typ=person):
+        # #num>0, means add  num leaves, 0 (all), <0 add prod(shape)-num
+        # #shape is 4D, shape[i]==1 collapse'd if True
+        cubed = 0
+        if num <= 0:
+            cubed = 1
+            for i in range(0, 3):
+                cubed *= shape[i]
+        num = cubed + num
+        pathA = []
+        ps = {}
+        assert(num > 0)
+        for nf in range(0, shape[3]):  # #floors
+            for ne in range(0, shape[2]):  # #elevators
+                for na in range(0, shape[1]):  # #apts
+                    for nr in range(0, shape[0]):  # #rooms
+                        tp = []
+                        if collapse and (shape[3] != 1):
+                            tp = [nf]
+                        if collapse and (shape[2] != 1):
+                            tp.append(ne)
+                        if collapse and (shape[1] != 1):
+                            tp.append(na)
+                        if collapse and (shape[0] != 1):
+                            tp.append(nr)
+                        nm = str(tp)
+                        if nm not in ps:  # #required for collapsing
+                            pathA.append(tp)
+                        else:
+                            continue
+                        if num == 0:
+                            return
+                        num -= 1
+                        ps[nm] = True
+                        ithPath = self.pathTo(tp, pop.getCNG())
+                        ithNode = ithPath.nodes[ithPath.curLoc]
+                        # #
+                        assert(ithPath.nodes[0] == ithNode)
+                        if "person" not in pop.paths.keys():
+                            pop.paths["person"] = [ithPath]
+                        else:
+                            pop.paths["person"].append(ithPath)
+                        assert(isinstance(ithNode, person) and
+                               ithNode not in pop.paths["person"])
+                        
+    
+
+class building(composite):  # # shape[0] is [#rooms,#people] per apt
+    def __init__(self, pop, address=None, shape=[1, 8, 1, 8]):
         if address is None:
-            address = "Bldg" + str(len(cng.names.values()))
-        composite.__init__(self, cng, address, COMPOSITE_TYPES[4][0], shape)
+            address = "b-" + str(len(pop.getCNG().names.values()))
+        composite.__init__(self, pop.getCNG(), address,
+                           composite.COMPOSITE_TYPES[4][0])
         self.roomsPerApt = shape[0]
         self.aptPerFl = shape[1]
         self.numElevators = shape[2]
         self.numFloors = shape[3]
-        pathA = []
-        ps = {}
-        for nf in range(0, shape[3]):  # #floors
-            for ne in range(0, shape[2]):  # #elevators
-                for na in range(0, shape[1]):  # #apts
-                    for nr in range(0,shape[0][0]):  # #rooms
-                        tp = []
-                        if shape[3] != 1:
-                            tp =[nf]
-                        if shape[2] != 1:
-                            tp = tp.append(ne)
-                        if shape[1] != 1:
-                            tp = tp.append(na)
-                        if shape[0] != 1:
-                            tp = tp.append(nr)
-                        nm = str(tp)
-                        if not nm in ps:
-                            pathA.append([nf,ne,na,nr,np])
-                        ps[nm]=True
-        self.pathTo(pathA, cng)
+        pop.setComposite(self)
+        self.fullTree(shape, pop)
 
 
 dispatch = {"bar": bar, "bus": bus, "busstop": busstop, "car": car,
@@ -615,7 +651,7 @@ class population:
         self.pctInf = 0
         self.acc = accum()
         self.composite = root
-        if not root is None:
+        if root is not None:
             self.name = "P_" + root.name
         else:
             if name is None:
@@ -627,18 +663,25 @@ class population:
         for nm in dispatch.keys():
             self.paths[nm] = []
 
-    def setRoot(self, composite):
-        if not composite in self.cng.names.values():
+    def setComposite(self, composite):  # #called updates self.paths[]
+        assert(self.composite is None)
+        if composite not in self.cng.names.values():
             assert(False)
         self.composite = composite
+        # #insure paths[typeName] is updated
+        for psn in composite.children.values():
+            self.paths[typeName].append(ithPath)
 
     def getCNG(self):
         return self.cng
         
-    def  findLevels(self):
+    def setCNG(self, cng):
+        self.cng = cng
+        
+    def findLevels(self):
         done = []
         finished = False
-        for i in range(0,len(self.cng.names.keys())):
+        for i in range(0, len(self.cng.names.keys())):
             finished = True
             self.levels[i] = []
             for path in self.paths["person"]:
@@ -759,7 +802,9 @@ class population:
         pass
 
 
-    def populate(self, typ=dispatch["person"], num=10, maxLevel=0, shape=[1,8,2,12,4]):
+    def populate(self, typ=dispatch["person"], num=10, maxLevel=0, pathIn=None):
+        # #pathA not None: path to composite where num nodes of typ are attached
+        # # if none
         if self.composite is None:
             self.composite = composite(self.cng, self.name)
         # #maxLevel to control distributions of nonCompos
@@ -768,19 +813,28 @@ class population:
                 typeName = ii
                 break
         for i in range(0, num):
-            pathA = []
-            for j in range(0, len(shape) - 1):
-                pathA.append(random.randint(0, shape[j]-1))
+            if pathIn is None:
+                # #go about choosing how to distribute num new nodes
+                shape = []
+                while 2**j < num:
+                    j = j + 1
+                    pathA.append(2)
+                self.composite.fullTree(self.composite,
+                                        shape, self, num, typ=typ)
+                return
+            pathA = pathIn
             nodeName = typeName + str(len(self.cng.names.values()))
-            ithPath = self.composite.pathTo(pathA, self.cng, typ(self.cng, nodeName))
+            ithPath = self.composite.pathTo(pathA,
+                                            self.cng,
+                                            typ(self.cng, nodeName))
             ithNode = ithPath.nodes[ithPath.curLoc]
             if ithPath is None:
                 import pdb; pdb.set_trace()
                 print
             else:
                 self.paths[typeName].append(ithPath)
-            if (typeName == "person"):
-                ithNode . addPath(ithPath)
+            if (typeName == "person"):   # #connection now made in pathTo
+                assert(ithNode in ithPath.nodes)
 
     def connectTypes(self, t1, t2, ctl=0):
         startSegmentPaths = self.paths[t1]
