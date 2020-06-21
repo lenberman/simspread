@@ -269,7 +269,10 @@ class node:
 
 class path:
     # #path:  ONE  person node (may occur at start or end)
+    p_counter = 0
     def __init__(self, array=[]):
+        self._id = p_counter
+        p_counter += 1
         self.nodes = []
         self.to(array)
         self.curLoc = None
@@ -324,6 +327,20 @@ class path:
             else:
                 rv.append(i.name)
         return direction + str(rv)
+
+    def getSrc(self):
+        return self.nodes[self.curLoc]
+
+    def getTarget(self):
+        forward = self.forward
+        if self.curLoc + self.forward < 0 or \
+           self.curLoc + self.forward >= len(self. nodes):
+            # #reverse path at current node
+            # #curLoc is end of this path
+            # import pdb; pdb.set_trace()
+            forward *= -1
+            return self.nodes[self.curLoc+forward]
+
 
     def process(self, cng):  # #one step at a time
         # #determine src and dest for this step
@@ -779,8 +796,10 @@ class population:
     def initSim(self):
         self.cng.time.reset(self.cng)
 
-    def step(self, numIter=5, follow=True):
+    def step(self, numIter=5, follow=True, display=False):
         self.initSim()
+        if display is not False:  # #display object reads current data
+            display(self)
         for i in range(0, numIter):
             self.cng.time.step(self.cng)
             if i < numIter - 1:
