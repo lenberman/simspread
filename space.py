@@ -801,15 +801,12 @@ class population:
                  num=10,
                  maxLevel=0,
                  pathIn=None):
-        # #pathA not None:path to composite where num nodes of typ are attached
-        # #pathA None: fullTree with maxLevel describing
+        # #pathIn not None:path to composite where num nodes of typ are attached
+        # #pathIn None: fullTree with maxLevel describing
         if self.composite is None:
             self.composite = composite(self.cng, self.name)
         # #maxLevel to control distributions of nonCompos
-        for ii in dispatch.keys():
-            if dispatch[ii] == typ:
-                typeName = ii
-                break
+        typeName = list(dispatch.keys())[list(dispatch.values()).index(typ)]
         for i in range(0, num):
             if pathIn is None:
                 # #go about choosing how to distribute num new nodes
