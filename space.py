@@ -570,7 +570,7 @@ class composite(node):
         cubed = 0
         if num <= 0:
             cubed = 1
-            for i in range(0, 3):
+            for i in range(0, 4):
                 cubed *= shape[i]
         num = cubed + num
         pathA = []
@@ -689,8 +689,7 @@ class population:
                 self.levels[i].append(node)
             if finished:
                 break
-        for i in self.levels.keys():
-            print("Level " + str(i), self.levels[i])
+        return self.levels
 
     def prune(self):
         for i in dispatch.keys():  # #for each type
@@ -802,7 +801,8 @@ class population:
                  maxLevel=0,
                  pathIn=None):
         # #pathIn not None:path to composite where num nodes of typ are attached
-        # #pathIn None: fullTree with maxLevel describing
+        # #pathIn None: fullTree with maxLevel depth, limited by num as above
+        # # if self.composite != None, add no new paths
         if self.composite is None:
             self.composite = composite(self.cng, self.name)
         # #maxLevel to control distributions of nonCompos
