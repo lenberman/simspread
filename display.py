@@ -3,22 +3,42 @@ from graphics import *
 
 #import pdb; pdb.set_trace()
 
-def stepSpan(data):
+
+def xSpan(data):  # # assuming data monotonic in 1st two coor.
     return [data[0][0], data[len(data)-1][1]]
 
+
+def ySpan(data, j=3):
+    # #j=3->field,=4->exposure,5(person)infected,
+    mm = [2**20, -2**20]
+    for i in range(0, len(data)):
+        mm[0] = min(mm[0], data[i][j])
+        mm[1] = max(mm[1], data[i][j])
+    return mm
+
+
+def colorVertices(poly, dis, color="red"):
+    vs = []
+    for pt in poly.getPoints():
+        cir = Circle(pt, 5)
+        cir.setWidth(5)
+        cir.setFill(color)
+        cir.draw(dis)
+        vs.append(cir)
+    return vs
+
+        
 def getIthData(data, i):
     if len(data) <= i:
         return None
     return data[i]
 
-    
 
+class display():
 
-class display(GraphWin):
-
-    def __init__(self, pop, title="DataDisplay", width=800, height=600):
-        GraphWin.__init__(self, title, width, height)
+    def __init__(self, pop, title="DataDisplay", height=600, width=800):
         self.pop = pop
+        self.win = GraphWin(title, width, height)
         # #self.win = GraphWin(width=800, height=600)
         # #{} of arrays of [lastStep, fieldStep, field, infected, exposure]
         self.pData = {}  # #indexed by name, ordered (by step)
@@ -66,40 +86,45 @@ class display(GraphWin):
         data = self.pathData[id]
         return data
 
-    def createPolys(self, id, theClass, rng=[0, 2**20], width=3):
-        # #rect is [rectangles] to be used for display, returned if not furnished
-        # #origin is point1 of first returned rectangle
-        # #returns array of rectangles which have been 
+    def createPolys(self, id, theClass, jth, rng=[0, 2**20]):
+        # #returns [vertices of values, enclosing rectangle]
         
         data = self._getData(id, theClass)
-        stepRange = stepSpan(data)
-        stepRange = [max(rng[0], stepRange[0]), min(rng[1], stepRange[1])]
+        xRange = xSpan(data)
+        xRange = [max(rng[0], xRange[0]), min(rng[1], xRange[1])]
+        yRange = ySpan(data, jth)
+
         numMeasurements = len(data)
         # #arrays of  polygon points for field (& exposure if person or path)
         fieldA = []
-        exposureA = []
-        exPoly = None
-        for i in range(0,numMeasurements):
+        for i in range(0, numMeasurements):
             ithData = getIthData(data, i)
-            fieldA.append(Point(ithData[0], ithData[2]))
-            if (theClass is person or theClass is path):
-                exposureA.append(Point(ithData[0], ithData[2]))
-        fieldA.append(Point(ithData[1], ithData[2]))
-        if (theClass is person or theClass is path):
-            exposureA.append(Point(ithData[1], ithData[2]))
-        fieldPoly = Polygon(fieldA)
-        if len(exposureA) > 0:
-            exPoly = Polygon(exposureA)
-            exPoly.setWidth(width)
-        fieldPoly.setWidth(width)
-        return [fieldPoly, exPoly]
+            fieldA.append([ithData[0], ithData[jth]])
+        return [fieldA, [xRange, yRange]]
 
-    def showGraph(self, poly, place=None):
+    def showGraph(self, polyRec, place=None, lineWidth=5, color="red"):
+        polyV = polyRec[0]
+        width = self.win.getWidth()
+        height = self.win.getHeight()
+        pointA = []
+        [[x0, xm], [y0, ym]] = polyRec[1]
+        dx = xm - x0 * 1.0
+        dy = ym - y0 * 1.0
+        if dx == 0.0 or dy == 0.0:
+            return None
+        xScale = width / dx
+        yScale = height / dy
+        for pts in polyV:
+            pointA.append(Point(((pts[0] - x0) * xScale), height - ((pts[1] - y0) * yScale)))
+        pointA.append(Point(((pts[0] - x0) * xScale), height))
+        poly = Polygon(pointA)
+        poly.setWidth(lineWidth)
+        poly.setFill(color)
         if place is not None:
             poly.move(place[0], place[1])
-        poly.draw(self)
+        poly.draw(self.win)
+        return poly
 
-            
 
 #win=GraphWin()
 
@@ -123,20 +148,33 @@ yy.connectTypes("person", "bar", 2)
 yy.prune()
 yy.showPaths()
 yy.showInfState()
-#import pdb; pdb.set_trace()
+import pdb; pdb.set_trace()
 dis = yy.step(5, follow=True, display=display)
 [x, y] = [50, 50]
 for pers in yy.cng.persons:
     if (pers._exposure != 0):
-        polys = dis.createPolys(pers.name, person)
-        dis.showGraph(polys[1], [x, y])
-        y += 50
-        dis.showGraph(polys[0], [x, y])
-        y += 50
+        polys = dis.createPolys(pers.name, person, 3)  # #exposure
+        polygon = dis.showGraph(polys)
+        clickPoint = dis.win.getMouse()
+        if polygon is not None:
+            polygon.undraw()
 for nd in yy.cng.names.values():
     if not isinstance(nd, person):
-        polys = dis.createPolys(nd.name, node)
-        y += 50
-        dis.showGraph(polys[1], [x, y])
-        y += 50
-        dis.showGraph(polys[0], [x, y])
+        polys = dis.createPolys(nd.name, node, 2)
+        polygon = dis.showGraph(polys)
+        clickPoint = dis.win.getMouse()
+        if polygon is not None:
+            polygon.undraw()
+        break
+for pth in yy.paths["person"]:
+    polys = dis.createPolys(pth._id, path, 3)  # #exposure
+    polygon = dis.showGraph(polys)
+    clickPoint = dis.win.getMouse()
+    if polygon is not None:
+        polygon.undraw()
+    break
+
+dis.win.close()
+
+# #rect is [rectangles] to be used for display, returned if not furnished
+# #origin is point1 of first returned rectangle
