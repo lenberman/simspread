@@ -267,12 +267,14 @@ class node:
         self._fieldStep = cng.time.currentStep
 
 
+
 class path:
     # #path:  ONE  person node (may occur at start or end)
     p_counter = 0
+    
     def __init__(self, array=[]):
-        self._id = p_counter
-        p_counter += 1
+        self._id = path.p_counter
+        path.p_counter += 1
         self.nodes = []
         self.to(array)
         self.curLoc = None
@@ -339,7 +341,7 @@ class path:
             # #curLoc is end of this path
             # import pdb; pdb.set_trace()
             forward *= -1
-            return self.nodes[self.curLoc+forward]
+        return self.nodes[self.curLoc+forward]
 
 
     def process(self, cng):  # #one step at a time
@@ -796,19 +798,23 @@ class population:
     def initSim(self):
         self.cng.time.reset(self.cng)
 
-    def step(self, numIter=5, follow=True, display=False):
+    def step(self, numIter=5, follow=True, display=None):
         self.initSim()
-        if display is not False:  # #display object reads current data
-            display(self)
+        if display is not None:  # #display object reads current data
+            dis = display(self)
+            dis.rData(self)
         for i in range(0, numIter):
             self.cng.time.step(self.cng)
             if i < numIter - 1:
                 self.cng.time.reset(self.cng)
+            if display is not None:  # #display object reads current data
+                dis.rData(self)
             if follow:
                 print("Step" + str(i))
                 self.showInfState()
         if not follow:
             self.showInfState()
+        return dis
 
     def absorb(self, pop, cut1=[], cut2=[]):
         pass
