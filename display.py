@@ -28,6 +28,9 @@ class display(GraphWin):
         self.pathData = {} 
         self.displayStep = 0
 
+    def __str__(self):
+        return "Display " + pop.name + "("+ self.getWidth() +", " + self.getHeight() +")"
+
     def __del__(self):
         self.win.close()
 
@@ -63,7 +66,7 @@ class display(GraphWin):
         data = self.pathData[id]
         return data
 
-    def createGraph(self, id, theClass, rng=[0, 2**20], width=3):
+    def createPolys(self, id, theClass, rng=[0, 2**20], width=3):
         # #rect is [rectangles] to be used for display, returned if not furnished
         # #origin is point1 of first returned rectangle
         # #returns array of rectangles which have been 
@@ -87,11 +90,13 @@ class display(GraphWin):
         fieldPoly = Polygon(fieldA)
         if len(exposureA) > 0:
             exPoly = Polygon(exposureA)
+            exPoly.setWidth(width)
         fieldPoly.setWidth(width)
-        exPoly.setWidth(width)
         return [fieldPoly, exPoly]
 
-    def showGraph(self, poly):
+    def showGraph(self, poly, place=None):
+        if place is not None:
+            poly.move(place[0], place[1])
         poly.draw(self)
 
             
@@ -118,8 +123,20 @@ yy.connectTypes("person", "bar", 2)
 yy.prune()
 yy.showPaths()
 yy.showInfState()
-import pdb; pdb.set_trace()
+#import pdb; pdb.set_trace()
 dis = yy.step(5, follow=True, display=display)
-polys = dis.createGraph(yy.cng.persons[0].name, person)
-dis.showGraph(polys[0])
-dis.showGraph(polys[1])
+[x, y] = [50, 50]
+for pers in yy.cng.persons:
+    if (pers._exposure != 0):
+        polys = dis.createPolys(pers.name, person)
+        dis.showGraph(polys[1], [x, y])
+        y += 50
+        dis.showGraph(polys[0], [x, y])
+        y += 50
+for nd in yy.cng.names.values():
+    if not isinstance(nd, person):
+        polys = dis.createPolys(nd.name, node)
+        y += 50
+        dis.showGraph(polys[1], [x, y])
+        y += 50
+        dis.showGraph(polys[0], [x, y])
