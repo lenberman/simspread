@@ -34,7 +34,17 @@ def getIthData(data, i):
     return data[i]
 
 
-class display():
+class graphObj:
+
+    def __init__(self, array):
+        self.array = array
+
+    def undraw(self):
+        for i in self.array:
+            i.undraw()
+
+
+class display:
 
     def __init__(self, pop, title="DataDisplay", height=600, width=800):
         self.pop = pop
@@ -102,7 +112,7 @@ class display():
             fieldA.append([ithData[0], ithData[jth]])
         return [fieldA, [xRange, yRange]]
 
-    def showGraph(self, polyRec, place=None, lineWidth=5, color="red"):
+    def showGraph(self, polyRec, place=None, lineWidth=5, color="red", type=Polygon):
         polyV = polyRec[0]
         width = self.win.getWidth()
         height = self.win.getHeight()
@@ -114,16 +124,32 @@ class display():
             return None
         xScale = width / dx
         yScale = height / dy
-        for pts in polyV:
-            pointA.append(Point(((pts[0] - x0) * xScale), height - ((pts[1] - y0) * yScale)))
-        pointA.append(Point(((pts[0] - x0) * xScale), height))
-        poly = Polygon(pointA)
-        poly.setWidth(lineWidth)
-        poly.setFill(color)
-        if place is not None:
-            poly.move(place[0], place[1])
-        poly.draw(self.win)
-        return poly
+        if type == Polygon:
+            for pts in polyV:
+                pointA.append(Point(((pts[0] - x0) * xScale), height - ((pts[1] - y0) * yScale)))
+            pointA.append(Point(((pts[0] - x0) * xScale), height))
+            poly = Polygon(pointA)
+            poly.setWidth(lineWidth)
+            poly.setFill(color)
+            if place is not None:
+                poly.move(place[0], place[1])
+            poly.draw(self.win)
+            return poly
+        else:
+            for i in range(0,len(polyV) - 1):
+                rect = Rectangle(Point(polyV[i][0] * xScale, 50), Point(polyV[i+1][0] * xScale, 0))
+                yFrac = 255*(polyV[i][1] - y0) / dy
+                aColor = color_rgb(int(yFrac % 255),
+                                   int((255 - yFrac) % 255),
+                                   int((128 + yFrac) % 255))
+                rect.setFill(aColor)
+                rect.setWidth(lineWidth)
+                pointA.append(rect)
+                if place is not None:
+                    rect.move(place[0], place[1])
+                rect.draw(self.win)
+        return graphObj(pointA)
+        
 
 
 #win=GraphWin()
@@ -154,7 +180,7 @@ dis = yy.step(5, follow=True, display=display)
 for pers in yy.cng.persons:
     if (pers._exposure != 0):
         polys = dis.createPolys(pers.name, person, 3)  # #exposure
-        polygon = dis.showGraph(polys)
+        polygon = dis.showGraph(polys, type=Rectangle)
         clickPoint = dis.win.getMouse()
         if polygon is not None:
             polygon.undraw()
@@ -165,7 +191,6 @@ for nd in yy.cng.names.values():
         clickPoint = dis.win.getMouse()
         if polygon is not None:
             polygon.undraw()
-        break
 for pth in yy.paths["person"]:
     polys = dis.createPolys(pth._id, path, 3)  # #exposure
     polygon = dis.showGraph(polys)
