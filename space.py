@@ -360,8 +360,6 @@ class path:
     def process(self, cng):  # #one step at a time
         # #determine src and dest for this step
         srcNode = self.nodes[self.curLoc]
-        if isinstance(srcNode, person):
-            self._exposure = 0
         srcField = srcNode.field
         srcFieldAvailableTime = srcNode._fieldStep + srcNode.delay
         if self.curLoc + self.forward < 0 or \
@@ -373,8 +371,9 @@ class path:
         targetNode = self.nodes[self.curLoc+self.forward]
         factor = cng.disease.dFactor(srcNode.delay, cng)
         srcNodeContribution = srcField * factor * cng.disease.pathFactor
-        # srcNode pFactor for PPE
+        # srcNode pFactor for PPE and reset at path start
         if isinstance(srcNode, person):
+            self._exposure = 0
             srcNodeContribution *= (1 - srcNode.pFactor)
         self._exposure = srcNodeContribution + (1 - cng.disease.pathFactor) * self._exposure
         targetNode.ready(srcField, srcFieldAvailableTime, self)
