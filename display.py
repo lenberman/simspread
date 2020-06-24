@@ -59,7 +59,8 @@ class display:
         # #array of [lastStep, _fieldStep, scheduledAt, field]
         self.npData = {}  # # non-person nodes and paths
         # # path._id:array [currentStep, srcFieldAvailableTime, src.field,target.field, exposure]
-        self.pathData = {} 
+        self.pathData = {}
+        self.graphs = {}
         self.displayStep = 0
 
     def __str__(self):
@@ -168,8 +169,10 @@ class display:
                 line.draw(self.win)
             return graphObj(pointA)
         return None
-        
 
+
+    def graphData(self, dataType=person, repType=Polygon, dataFilter=None):
+        
 
 #win=GraphWin()
 
@@ -199,25 +202,25 @@ dis = yy.step(5, follow=True, display=display)
 for nd in yy.cng.names.values():
     if not isinstance(nd, person):
         polys = dis.createPolys(nd.name, node, 2)
-        polygon = dis.showGraph(polys)  # #default display uses Polygon
-        if polygon is not None:
+        grafObj = dis.showGraph(polys)  # #default display uses GrafObj
+        if grafObj is not None:
             clickPoint = dis.win.getMouse()
-            polygon.undraw()
+            grafObj.undraw()
 
 for pth in yy.paths["person"]:
     polys = dis.createPolys(pth._id, path, 3)  # #exposure
-    polygon = dis.showGraph(polys, type=Line)
-    if polygon is not None:
+    grafObj = dis.showGraph(polys, type=Line)
+    if grafObj is not None:
         clickPoint = dis.win.getMouse()
-        polygon.undraw()
+        grafObj.undraw()
 
 for pers in yy.cng.persons:
     if (pers._exposure != 0):
         polys = dis.createPolys(pers.name, person, 3)  # #exposure
-        polygon = dis.showGraph(polys, type=Rectangle)
-        if polygon is not None:
+        grafObj = dis.showGraph(polys, type=Rectangle)
+        if grafObj is not None:
             clickPoint = dis.win.getMouse()
-            polygon.undraw()
+            grafObj.undraw()
 
 dis.win.close()
 
