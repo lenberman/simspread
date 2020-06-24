@@ -27,6 +27,19 @@ class disease:
         self.vdfDecayPerStepExp = \
             -math.log(2.0)/(vdfHalfLifeMinutes/minutesPerStep)
         self.pathFactor = .5  # #accumulation along paths
+        self.infectiousPeriod = symp + asym
+        self.dose = 100  # # how much exposure results in infection
+        self.diseaseRecord = {}
+
+    def recordInfection(self, exposure, tm, nm):
+        if tm not in self.diseaseRecord:
+            self.diseaseRecord[tm] = []
+        self.diseaseRecord[tm].append([True, nm, exposure])
+
+    def recordRecovery(self, tm, nm):
+        if tm not in self.diseaseRecord:
+            self.diseaseRecord[tm] = []
+        self.diseaseRecord[tm].append([False, nm])
 
     def infectivity(prsn):
         pass
@@ -172,7 +185,7 @@ class node:
 
     def __str__(self):
         nm = self.name
-        if isinstance(self, person) and self._infected:
+        if isinstance(self, person) and self.infected:
             nm = "<*" + self.name + "*>"
         val = nm + "(" + self._role
         val += ", field=" + str(self._field)
@@ -347,6 +360,8 @@ class path:
     def process(self, cng):  # #one step at a time
         # #determine src and dest for this step
         srcNode = self.nodes[self.curLoc]
+        if isinstance(srcNode, person):
+            self._exposure = 0
         srcField = srcNode.field
         srcFieldAvailableTime = srcNode._fieldStep + srcNode.delay
         if self.curLoc + self.forward < 0 or \
@@ -447,8 +462,7 @@ class person(node):
         if name == "":
             name = "person." + str(len(cng.names.values()))
         node.__init__(self, cng, name, role="PERSON")
-        self._infected = False
-        self._infectedStep = -1
+        self.setInfected(False, cng)
         cng.persons.append(self)
         self.paths = []
         self.nextPath = None
@@ -462,8 +476,25 @@ class person(node):
             print("person without paths:" + str((self)))
             return
         self.observable = True
-        if self.nextPath is None:
+        if self.nextPath is None:  # #cycle through available paths
             self.nextPath = 0
+        elif self.nextPath + 1 < len(self.paths):
+            self.nextPath += 1
+        else:
+            self.nextPath = 0
+            # #determine whether infected has changed
+        if self.infected and self.recovered(cng):
+            self.setInfected(False, cng)
+            cng.disease.recordRecovery(cng.time.currentStep, self.name)
+        elif not self.infected and self._exposure > cng.disease.dose:
+            cng.disease.recordInfection(self._exposure, cng.time.currentStep, self.name)
+            self.setInfected(True, cng)
+        
+    def recovered(self, cng):
+        if self._infectedStep >= 0:
+            return cng.time.currentStep >\
+                cng.disease.infectiousPeriod + self._infectedStep
+        return False
 
     def protect(self, amt=1.0):
         self.pFactor = amt
@@ -475,8 +506,11 @@ class person(node):
             dt = cng.time.currentStep - self._fieldStep
             assert(dt > 0)
             factor = cng.disease.dFactor(dt, cng)
-            self._exposure = (tPath._exposure + self._exposure * factor)/(1 + factor)
-            tPath._exposure = 0  # #reset exposure along path to zero.
+            if self.infected:
+                self._exposure = 0
+            else:
+                self._exposure = (tPath._exposure + self._exposure * factor)/(1 + factor)
+                # #move reset exposure along path to process of path
             if (False):
                 print("\n" + str(self.name) + " @ " + str(self._fieldStep) +
                       ":\t" + str(self.inReady[0]) + ", field=\t" +
@@ -499,9 +533,17 @@ class person(node):
     def infected(self):
         return self._infected
 
+    @infected.setter
+    def infected(self, x):
+        assert(False)
+
     def setInfected(self, val, cng):
         self._infected = val
-        self._infectedStep = cng.time.currentStep
+        if not val:
+            self._infectedStep = -1
+        else:
+            self._infectedStep = cng.time.currentStep
+        self._exposure = 0
 
     def addPath(self, path):
         if (self.nextPath is None):
@@ -526,7 +568,7 @@ class person(node):
 
     def calculate(self, cng):
         val = self._field
-        if self._infected:
+        if self.infected:
             val = 1.0
         if len(self.inReady[0]) == 1:   # #value path end
             return (1-self.pFactor)*(val+self.inReady[0][0])/2.0
@@ -795,24 +837,26 @@ class population:
             else:
                 prsn.setInfected(False, self.cng)
 
-    def initSim(self):
+    def step(self, numIter=5, follow=True, display=None, quiet=False):
         self.cng.time.reset(self.cng)
-
-    def step(self, numIter=5, follow=True, display=None):
-        self.initSim()
         if display is not None:  # #display object reads current data
             dis = display(self)
-            dis.rData(self)
+            dis.rData()
+        else:
+            dis = None
         for i in range(0, numIter):
+            if i == 0 and not quiet:
+                print("Initial state")
+                self.showInfState()
             self.cng.time.step(self.cng)
             if i < numIter - 1:
                 self.cng.time.reset(self.cng)
             if display is not None:  # #display object reads current data
-                dis.rData(self)
+                dis.rData()
             if follow:
                 print("Step" + str(i))
                 self.showInfState()
-        if not follow:
+        if not follow and not quiet:
             self.showInfState()
         return dis
 
@@ -845,7 +889,7 @@ class population:
                 self.composite.fullTree(shape, self, num, theType=typ)
                 return
             pathA = pathIn
-            nodeName = typeName + str(len(self.cng.names.values()))
+            nodeName = typeName[0:3] + "." + str(len(self.cng.names.values()))
             ithPath = self.composite.pathTo(pathA,
                                             self.cng,
                                             typ(self.cng, nodeName))
@@ -865,16 +909,17 @@ class population:
         l2 = len(endSegmentPaths)
         assert(len(startSegmentPaths) != 0 and len(endSegmentPaths) != 0)
         for i in range(0, max(l1, l2)):
-            start = startSegmentPaths[i % l1]
-            end = endSegmentPaths[i % l2]
-            splice = start.splice(end)
-            assert (splice is not None)
-            startSegmentPaths.append(splice)
-            if (t1 == "person"):
-                splice.nodes[0].addPath(splice)
-            if (t2 == "person"):
-                lt2 = len(splice.nodes)
-                splice.nodes[lt2 - 1].addPath(splice)
+            for j in range(0, ctl):
+                start = startSegmentPaths[(i * (j + 1)) % l1]
+                end = endSegmentPaths[(i * (j + 1)) % l2]
+                splice = start.splice(end)
+                assert (splice is not None)
+                startSegmentPaths.append(splice)
+                if (t1 == "person"):
+                    splice.nodes[0].addPath(splice)
+                    if (t2 == "person"):
+                        lt2 = len(splice.nodes)
+                        splice.nodes[lt2 - 1].addPath(splice)
 
 
 #x = population()

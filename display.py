@@ -43,6 +43,10 @@ class graphObj:
         for i in self.array:
             i.undraw()
 
+    def draw(self, win):
+        for i in self.array:
+            i.draw(win)
+
 
 class display:
 
@@ -64,7 +68,7 @@ class display:
     def __del__(self):
         self.win.close()
 
-    def rData(self, show=True):
+    def rData(self):
         for nd in self.pop.cng.persons:
             if nd.name not in self.pData.keys():
                 self.pData[nd.name] = []
@@ -78,7 +82,7 @@ class display:
             self.npData[nd.name].append([nd.lastStep, nd._fieldStep, nd._field,
                                          nd.scheduledAt])
         for path in self.pop.paths["person"]:
-            if path not in self.pathData.keys():
+            if path._id not in self.pathData.keys():
                 self.pathData[path._id] = []
             srcNode = path.getSrc()
             srcNodeAvailableTime = srcNode._fieldStep + srcNode.delay
@@ -135,7 +139,7 @@ class display:
                 poly.move(place[0], place[1])
             poly.draw(self.win)
             return poly
-        else:
+        elif type == Rectangle:
             for i in range(0,len(polyV) - 1):
                 rect = Rectangle(Point(polyV[i][0] * xScale, 50), Point(polyV[i+1][0] * xScale, 0))
                 yFrac = 255*(polyV[i][1] - y0) / dy
@@ -148,7 +152,22 @@ class display:
                 if place is not None:
                     rect.move(place[0], place[1])
                 rect.draw(self.win)
-        return graphObj(pointA)
+            return graphObj(pointA)
+        elif type ==  Line:
+            for i in range(0,len(polyV) - 1):
+                line = Line(Point(polyV[i][0] * xScale, 0), Point(polyV[i+1][0] * xScale, 0))
+                yFrac = 255*(polyV[i][1] - y0) / dy
+                aColor = color_rgb(int(yFrac % 255),
+                                   int((255 - yFrac) % 255),
+                                   int((128 + yFrac) % 255))
+                line.setFill(aColor)
+                line.setWidth(lineWidth)
+                pointA.append(line)
+                if place is not None:
+                    line.move(place[0], place[1])
+                line.draw(self.win)
+            return graphObj(pointA)
+        return None
         
 
 
@@ -176,28 +195,29 @@ yy.showPaths()
 yy.showInfState()
 import pdb; pdb.set_trace()
 dis = yy.step(5, follow=True, display=display)
-[x, y] = [50, 50]
+
+for nd in yy.cng.names.values():
+    if not isinstance(nd, person):
+        polys = dis.createPolys(nd.name, node, 2)
+        polygon = dis.showGraph(polys)  # #default display uses Polygon
+        if polygon is not None:
+            clickPoint = dis.win.getMouse()
+            polygon.undraw()
+
+for pth in yy.paths["person"]:
+    polys = dis.createPolys(pth._id, path, 3)  # #exposure
+    polygon = dis.showGraph(polys, type=Line)
+    if polygon is not None:
+        clickPoint = dis.win.getMouse()
+        polygon.undraw()
+
 for pers in yy.cng.persons:
     if (pers._exposure != 0):
         polys = dis.createPolys(pers.name, person, 3)  # #exposure
         polygon = dis.showGraph(polys, type=Rectangle)
-        clickPoint = dis.win.getMouse()
         if polygon is not None:
+            clickPoint = dis.win.getMouse()
             polygon.undraw()
-for nd in yy.cng.names.values():
-    if not isinstance(nd, person):
-        polys = dis.createPolys(nd.name, node, 2)
-        polygon = dis.showGraph(polys)
-        clickPoint = dis.win.getMouse()
-        if polygon is not None:
-            polygon.undraw()
-for pth in yy.paths["person"]:
-    polys = dis.createPolys(pth._id, path, 3)  # #exposure
-    polygon = dis.showGraph(polys)
-    clickPoint = dis.win.getMouse()
-    if polygon is not None:
-        polygon.undraw()
-    break
 
 dis.win.close()
 
