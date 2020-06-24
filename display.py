@@ -40,6 +40,58 @@ class display:
     def __del__(self):
         self.win.close()
 
+    def getGraphObj(self, polyRec, place=None, lineWidth=5, color="red", type=Polygon,
+                    width=800, height=600):
+        polyV = polyRec[0]
+        pointA = []
+        [[x0, xm], [y0, ym]] = polyRec[1]
+        dx = xm - x0 * 1.0
+        dy = ym - y0 * 1.0
+        if dx == 0.0 or dy == 0.0:
+            return None
+        xScale = width / dx
+        yScale = height / dy
+        if type == Polygon:
+            for pts in polyV:
+                pointA.append(Point(((pts[0] - x0) * xScale),
+                                    height - ((pts[1] - y0) * yScale)))
+            pointA.append(Point(((pts[0] - x0) * xScale), height))
+            poly = Polygon(pointA)
+            poly.setWidth(lineWidth)
+            poly.setFill(color)
+            if place is not None:
+                poly.move(place[0], place[1])
+            return graphObj([poly])
+        elif type == Rectangle:
+            for i in range(0, len(polyV) - 1):
+                rect = Rectangle(Point(polyV[i][0] * xScale, 50),
+                                 Point(polyV[i+1][0] * xScale, 0))
+                yFrac = 255*(polyV[i][1] - y0) / dy
+                aColor = color_rgb(int(yFrac % 255),
+                                   int((255 - yFrac) % 255),
+                                   int((128 + yFrac) % 255))
+                rect.setFill(aColor)
+                rect.setWidth(lineWidth)
+                pointA.append(rect)
+                if place is not None:
+                    rect.move(place[0], place[1])
+            return graphObj(pointA)
+        elif type ==  Line:
+            for i in range(0,len(polyV) - 1):
+                line = Line(Point(polyV[i][0] * xScale, 0), Point(polyV[i+1][0] * xScale, 0))
+                yFrac = 255*(polyV[i][1] - y0) / dy
+                aColor = color_rgb(int(yFrac % 255),
+                                   int((255 - yFrac) % 255),
+                                   int((128 + yFrac) % 255))
+                line.setFill(aColor)
+                line.setWidth(lineWidth)
+                pointA.append(line)
+                if place is not None:
+                    line.move(place[0], place[1])
+            return graphObj(pointA)
+        return None
+
+        
 
 #win=GraphWin()
 
