@@ -50,9 +50,20 @@ class graphObj:
 
 class display:
 
-    def __init__(self, pop, title="DataDisplay", height=600, width=800):
-        self.pop = pop
+    def __init__(self, title="DataDisplay", height=600, width=800):
         self.win = GraphWin(title, width, height)
+
+    def __str__(self):
+        return "Display(" + self.win.getWidth() + ", " + self.win.getHeight() + ")"
+
+    def __del__(self):
+        self.win.close()
+
+
+class record:
+
+    def __init__(self, pop):
+        self.pop = pop
         # #self.win = GraphWin(width=800, height=600)
         # #{} of arrays of [lastStep, fieldStep, field, infected, exposure]
         self.pData = {}  # #indexed by name, ordered (by step)
@@ -63,13 +74,8 @@ class display:
         self.graphs = {}
         self.displayStep = 0
 
-    def __str__(self):
-        return "Display " + pop.name + "("+ self.getWidth() +", " + self.getHeight() +")"
 
-    def __del__(self):
-        self.win.close()
-
-    def rData(self):
+    def rData(self):  # most interesting data in location: [ptx , pty, ?, val, ??]
         for nd in self.pop.cng.persons:
             if nd.name not in self.pData.keys():
                 self.pData[nd.name] = []
@@ -80,8 +86,8 @@ class display:
                 next
             if nd.name not in self.npData.keys():
                 self.npData[nd.name] = []
-            self.npData[nd.name].append([nd.lastStep, nd._fieldStep, nd._field,
-                                         nd.scheduledAt])
+            self.npData[nd.name].append([nd.lastStep, nd._fieldStep,
+                                         nd.scheduledAt, nd._field])
         for path in self.pop.paths["person"]:
             if path._id not in self.pathData.keys():
                 self.pathData[path._id] = []
@@ -101,8 +107,8 @@ class display:
         data = self.pathData[id]
         return data
 
-    def createPolys(self, id, theClass, jth, rng=[0, 2**20]):
-        # #returns [vertices of values, enclosing rectangle]
+    def createPolys(self, id, theClass, jth=3, rng=[0, 2**20]):
+        # #returns [points on graph, enclosing rectangle]
         
         data = self._getData(id, theClass)
         xRange = xSpan(data)
@@ -117,10 +123,9 @@ class display:
             fieldA.append([ithData[0], ithData[jth]])
         return [fieldA, [xRange, yRange]]
 
-    def showGraph(self, polyRec, place=None, lineWidth=5, color="red", type=Polygon):
+    def getGraphObj(self, polyRec, place=None, lineWidth=5, color="red", type=Polygon,
+                    width=800, height=600):
         polyV = polyRec[0]
-        width = self.win.getWidth()
-        height = self.win.getHeight()
         pointA = []
         [[x0, xm], [y0, ym]] = polyRec[1]
         dx = xm - x0 * 1.0
@@ -139,11 +144,11 @@ class display:
             if place is not None:
                 poly.move(place[0], place[1])
             poly.draw(self.win)
-            return poly
+            return graphObj([poly])
         elif type == Rectangle:
             for i in range(0,len(polyV) - 1):
                 rect = Rectangle(Point(polyV[i][0] * xScale, 50), Point(polyV[i+1][0] * xScale, 0))
-                yFrac = 255*(polyV[i][1] - y0) / dy
+                 yFrac = 255*(polyV[i][1] - y0) / dy
                 aColor = color_rgb(int(yFrac % 255),
                                    int((255 - yFrac) % 255),
                                    int((128 + yFrac) % 255))
@@ -170,9 +175,32 @@ class display:
             return graphObj(pointA)
         return None
 
-
-    def graphData(self, dataType=person, repType=Polygon, dataFilter=None):
+    @ #returns [ idArray, graphObjArray ]  graphObj's draw and undraw.
+    def graphData(self, dataType, repType=Polygon, nodeFilter=None):
+        idA  = []
+        if dataType == person:
+            for nd in self.pData.values():
+                if nodeFilter == None or isinstance(nd, dataFilter):
+                    idA.append(nd.name)
+        elif dataType == path:
+            for pth in self.pop.paths["person"]:
+                idA.append(pth._id)
+        else:
+            for nd in self.npData.values():
+                if nodeFilter == None or isinstance(nd, dataFilter):
+                    idA.append(nd.name)
+        if len(idA) == 0:
+            return None
         
+        graphObjA = []
+        for id in idA:
+            if id not in self.graphs.keys():
+                self.graphs[id] = []
+            polyRec = self.createPolys(id, dataType)
+            graphObj = self.getGraphObj(polyRec,repType)
+            self.graphs[id].append(graphObj)
+            graphObjA.append(graphObj)
+        return [idA, graphObjA]
 
 #win=GraphWin()
 
@@ -201,7 +229,7 @@ dis = yy.step(5, follow=True, display=display)
 
 for nd in yy.cng.names.values():
     if not isinstance(nd, person):
-        polys = dis.createPolys(nd.name, node, 2)
+                             polys = dis.createPolys(nd.name, node, 3) #3 now 'best"
         grafObj = dis.showGraph(polys)  # #default display uses GrafObj
         if grafObj is not None:
             clickPoint = dis.win.getMouse()
