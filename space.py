@@ -1006,19 +1006,21 @@ class record:
         return [fieldA, [xRange, yRange]]
 
     # #returns [ idArray, [ polys  ]  graphObj's draw and undraw.
-    def graphData(self, dataType, repType=None, nodeFilter=None):
+    def graphData(self, dataType, nodeFilter=None):
         idA  = []
         if dataType == person:
-            for nd in self.pData.values():
-                if nodeFilter is None or isinstance(nd, nodeFilter):
-                    idA.append(nd.name)
+            for nm in self.pData.keys():
+                if (nodeFilter is None or
+                    isinstance(self.pop.cng.names[nm], nodeFilter)):
+                    idA.append(nm)
         elif dataType == path:
             for pth in self.pop.paths["person"]:
                 idA.append(pth._id)
         else:
-            for nd in self.npData.values():
-                if nodeFilter is None or isinstance(nd, nodeFilter):
-                    idA.append(nd.name)
+            for nm in self.npData.keys():
+                if (nodeFilter is None or
+                    isinstance(self.pop.cng.names[nm], nodeFilter)):
+                    idA.append(nm)
         if len(idA) == 0:
             return None
         

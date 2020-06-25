@@ -1,4 +1,3 @@
-from space import *
 from graphics import *
 
 #import pdb; pdb.set_trace()
@@ -94,6 +93,7 @@ class display:
         
 
 #win=GraphWin()
+from space import *
 
 
 yy = population()
@@ -110,34 +110,45 @@ yy.setInfPct(.1)  # #default 25s%
 
 yy.connectTypes("person", "bar", 2)
 
+import pdb; pdb.set_trace()
 #levels = yy.findLevels()
 #yy.showPaths()
 yy.prune()
 yy.showPaths()
 yy.showInfState()
-import pdb; pdb.set_trace()
+
 rec = yy.step(5, follow=True, display=record)
+personGraphData = rec.graphData(person)
+pathGraphData = rec.graphData(path)
+nodeGraphData = rec.graphData(node, building)
+dis = display()
 
-for nd in yy.cng.names.values():
-    if not isinstance(nd, person):
-        polys = dis.createPolys(nd.name, node, 3) #3 now 'best"
-        grafObj = dis.showGraph(polys)  # #default display uses GrafObj
-        if grafObj is not None:
-            clickPoint = dis.win.getMouse()
-            grafObj.undraw()
-
-for pth in yy.paths["person"]:
-    polys = dis.createPolys(pth._id, path, 3)  # #exposure
-    grafObj = dis.showGraph(polys, type=Line)
+for i in range(0,len(pathGraphData[0])):
+    pth_id = pathGraphData[0][i]
+    polyRec = pathGraphData[1][i]
+    grafObj = dis.getGraphObj(polyRec, type=Line)
     if grafObj is not None:
+        grafObj.draw(dis.win)
         clickPoint = dis.win.getMouse()
         grafObj.undraw()
+        next
+    assert(False)
 
 for pers in yy.cng.persons:
     if (pers._exposure != 0):
-        polys = dis.createPolys(pers.name, person, 3)  # #exposure
+        polys = rec.createPolys(pers.name, person, 3)  # #exposure
         grafObj = dis.showGraph(polys, type=Rectangle)
         if grafObj is not None:
+            grafObj.draw(dis.win)
+            clickPoint = dis.win.getMouse()
+            grafObj.undraw()
+
+for nd in yy.cng.names.values():
+    if not isinstance(nd, person):
+        polys = rec.createPolys(nd.name, node) #3 now 'best"
+        grafObj = rec.showGraph(polys)  # #default display uses GrafObj
+        if grafObj is not None:
+            grafObj.draw(dis.win)
             clickPoint = dis.win.getMouse()
             grafObj.undraw()
 
